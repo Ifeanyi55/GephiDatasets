@@ -1,4 +1,3 @@
-[![License](https://img.shields.io/github/license/Ifeanyi55/GephiDatasets)](./LICENSE)
 [![Stars](https://img.shields.io/github/stars/Ifeanyi55/GephiDatasets?style=social)](https://github.com/Ifeanyi55/GephiDatasets/stargazers)
 [![Forks](https://img.shields.io/github/forks/Ifeanyi55/GephiDatasets?style=social)](https://github.com/Ifeanyi55/GephiDatasets/network/members)
 [![Issues](https://img.shields.io/github/issues/Ifeanyi55/GephiDatasets)](https://github.com/Ifeanyi55/GephiDatasets/issues)
