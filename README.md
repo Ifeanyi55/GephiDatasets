@@ -6,3 +6,4 @@ This repository has no direct affiliation with Gephi. Nevertheless, its goal is 
 
 Presently, this repository contains datasets scraped from Twitter, Spotify, [OpenAlex.org](https://openalex.org/), and Bluesky. Our goal is to keep populating it with datasets scraped from publicly available data sources via their APIs.
 
+![Gephi Graph](internet_kg.png)
