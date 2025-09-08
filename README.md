@@ -4,12 +4,16 @@
 [![Last Commit](https://img.shields.io/github/last-commit/Ifeanyi55/GephiDatasets)](https://github.com/Ifeanyi55/GephiDatasets/commits/main)
 [![Open Source Love](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/Ifeanyi55/GephiDatasets)
 
-# GephiDatasets
+# **GephiDatasets**
 This is an independent repository of datasets for learning and mastering Gephi. It is completely open source, which means that anybody is welcome to contribute datasets to this repository by submitting a pull request. 
 Datasets can be in any form that can be consumed in Gephi, such as CSV, GraphML, and GEXF. 
 
 This repository has no direct affiliation with Gephi. Nevertheless, its goal is to be a source of high-quality ready-to-load datasets for learning and mastering Gephi.
 
 Presently, this repository contains datasets scraped from Twitter, Spotify, [OpenAlex.org](https://openalex.org/), and Bluesky. Our goal is to keep populating it with datasets scraped from publicly available data sources via their APIs.
+
+# **OpenAlex4Gephi**
+
+[OpenAlex4Gephi](https://github.com/Ifeanyi55/OpenAlex4Gephi) is an open-source web tool that interfaces between OpenAlex.org and Gephi, enabling users to collect author-to-publication network data and export it to Gephi for visualization and analysis.
 
 ![Gephi Graph](internet_kg.png)
