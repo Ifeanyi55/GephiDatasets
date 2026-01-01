@@ -1,0 +1,143 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><key id="d0" for="edge" attr.name="relation" attr.type="string"/>
+<graph edgedefault="directed"><node id="beauty standards"/>
+<node id="lower self-esteem"/>
+<node id="identity formation"/>
+<node id="Social media"/>
+<node id="poor body image"/>
+<node id="social skills"/>
+<node id="empathy"/>
+<node id="friendships"/>
+<node id="anxiety"/>
+<node id="advocacy"/>
+<node id="connection"/>
+<node id="Cyberbullying"/>
+<node id="face-to-face social interactions"/>
+<node id="supportive communities"/>
+<node id="diverse interests"/>
+<node id="emotional well-being"/>
+<node id="self-expression"/>
+<node id="unrealistic lifestyles"/>
+<node id="sleep patterns"/>
+<node id="harmful or inappropriate content"/>
+<node id="diverse perspectives"/>
+<node id="negative social comparison"/>
+<node id="young, developing brains"/>
+<node id="feelings of inadequacy"/>
+<node id="depression"/>
+<node id="academic responsibilities"/>
+<node id="safety"/>
+<node id="new relationships"/>
+<node id="mental health issues"/>
+<node id="family activities"/>
+<node id="young people"/>
+<node id="brain's reward center"/>
+<node id="development"/>
+<node id="learning"/>
+<node id="social awareness"/>
+<edge source="beauty standards" target="feelings of inadequacy">
+  <data key="d0">can lead to</data>
+</edge>
+<edge source="beauty standards" target="negative social comparison">
+  <data key="d0">can lead to</data>
+</edge>
+<edge source="beauty standards" target="poor body image">
+  <data key="d0">can lead to</data>
+</edge>
+<edge source="Social media" target="anxiety">
+  <data key="d0">is linked to</data>
+</edge>
+<edge source="Social media" target="social skills">
+  <data key="d0">can hinder development of</data>
+</edge>
+<edge source="Social media" target="social awareness">
+  <data key="d0">promotes</data>
+</edge>
+<edge source="Social media" target="diverse perspectives">
+  <data key="d0">is a tool for exploring</data>
+</edge>
+<edge source="Social media" target="depression">
+  <data key="d0">is linked to</data>
+</edge>
+<edge source="Social media" target="academic responsibilities">
+  <data key="d0">can distract from</data>
+</edge>
+<edge source="Social media" target="face-to-face social interactions">
+  <data key="d0">can diminish</data>
+</edge>
+<edge source="Social media" target="supportive communities">
+  <data key="d0">allows youth to find</data>
+</edge>
+<edge source="Social media" target="new relationships">
+  <data key="d0">allows youth to build</data>
+</edge>
+<edge source="Social media" target="identity formation">
+  <data key="d0">is a tool for</data>
+</edge>
+<edge source="Social media" target="connection">
+  <data key="d0">fosters</data>
+</edge>
+<edge source="Social media" target="development">
+  <data key="d0">influences</data>
+</edge>
+<edge source="Social media" target="self-expression">
+  <data key="d0">is a tool for</data>
+</edge>
+<edge source="Social media" target="mental health issues">
+  <data key="d0">is linked to</data>
+</edge>
+<edge source="Social media" target="family activities">
+  <data key="d0">can distract from</data>
+</edge>
+<edge source="Social media" target="friendships">
+  <data key="d0">allows youth to maintain</data>
+</edge>
+<edge source="Social media" target="diverse interests">
+  <data key="d0">is a tool for exploring</data>
+</edge>
+<edge source="Social media" target="young people">
+  <data key="d0">is an integral part of the lives of</data>
+</edge>
+<edge source="Social media" target="sleep patterns">
+  <data key="d0">can disrupt</data>
+</edge>
+<edge source="Social media" target="lower self-esteem">
+  <data key="d0">is linked to</data>
+</edge>
+<edge source="Social media" target="brain's reward center">
+  <data key="d0">stimulates</data>
+</edge>
+<edge source="Social media" target="empathy">
+  <data key="d0">promotes</data>
+</edge>
+<edge source="Social media" target="young, developing brains">
+  <data key="d0">complicates responsible usage for</data>
+</edge>
+<edge source="Cyberbullying" target="safety">
+  <data key="d0">poses risks to</data>
+</edge>
+<edge source="Cyberbullying" target="emotional well-being">
+  <data key="d0">poses risks to</data>
+</edge>
+<edge source="unrealistic lifestyles" target="poor body image">
+  <data key="d0">can lead to</data>
+</edge>
+<edge source="unrealistic lifestyles" target="feelings of inadequacy">
+  <data key="d0">can lead to</data>
+</edge>
+<edge source="unrealistic lifestyles" target="negative social comparison">
+  <data key="d0">can lead to</data>
+</edge>
+<edge source="harmful or inappropriate content" target="emotional well-being">
+  <data key="d0">poses risks to</data>
+</edge>
+<edge source="harmful or inappropriate content" target="safety">
+  <data key="d0">poses risks to</data>
+</edge>
+<edge source="young people" target="advocacy">
+  <data key="d0">utilize social media for</data>
+</edge>
+<edge source="young people" target="learning">
+  <data key="d0">utilize social media for</data>
+</edge>
+</graph></graphml>
