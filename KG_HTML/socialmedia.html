@@ -1,0 +1,3375 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knowledge Graph Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            height: 100vh;
+            transition: grid-template-columns 0.3s ease;
+        }
+
+        .layout.sidebar-collapsed {
+            grid-template-columns: 0px 1fr;
+        }
+
+        .layout.sidebar-disabled {
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+
+        .layout.sidebar-disabled .main {
+            width: 100vw !important;
+        }
+
+        .layout.sidebar-disabled .tab-panel {
+            padding: 0 !important;
+            width: 100vw !important;
+        }
+
+        .layout.sidebar-disabled .network-panel {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0;
+            border: none;
+            max-width: none !important;
+        }
+
+        .layout.sidebar-disabled #networkCanvas {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+        }
+
+        /* Force canvas to take full iframe space */
+        canvas#networkCanvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .sidebar {
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            padding: 24px 24px 16px;
+            overflow-y: auto;
+            transition: width 0.3s ease, opacity 0.3s ease;
+            display: block; /* Visible in standalone mode */
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            padding: 24px 0 16px;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        .sidebar h1 {
+            margin: 0 0 8px;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar p {
+            margin: 0 0 20px;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section h2 {
+            font-size: 1rem;
+            margin: 0 0 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1e293b;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5f5;
+            border-radius: 10px;
+            font-size: 0.95rem;
+        }
+
+        .search-hint {
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .list-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .list-item strong {
+            font-weight: 600;
+        }
+
+        .cluster-item,
+        .relation-item {
+            border-left: 4px solid transparent;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .cluster-item:hover,
+        .relation-item:hover {
+            background: #e2e8f0;
+        }
+
+        .cluster-item.active,
+        .relation-item.active {
+            transform: translateX(4px);
+            background: #e2e8f0;
+        }
+
+        .cluster-item .meta,
+        .relation-item .meta {
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        .main {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            padding: 16px 20px 0;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .tab {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            padding: 10px 16px;
+            border-radius: 999px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .tab.active {
+            background: #1d4ed8;
+            color: #ffffff;
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: none; /* Hidden when sidebar is disabled */
+        }
+
+        .sidebar-toggle:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .sidebar-toggle::before {
+            content: '☰';
+            margin-right: 6px;
+        }
+
+        .sidebar-toggle.collapsed::before {
+            content: '☰';
+        }
+
+        .tab-panel {
+            flex: 1;
+            display: none;
+            padding: 16px 20px;
+            overflow: hidden;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .network-panel {
+            height: calc(100vh - 74px);
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        #networkCanvas {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+        }
+
+        #networkCanvas {
+            cursor: grab;
+        }
+
+        #networkCanvas:active {
+            cursor: grabbing;
+        }
+
+        .selection-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+
+        .selection-card h3 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+        }
+
+        .selection-card ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .selection-card li {
+            margin-bottom: 4px;
+            color: #475569;
+        }
+
+        .table-container {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            height: calc(100vh - 90px);
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: #f8fafc;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            font-size: 0.75rem;
+            color: #0f172a;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: #475569;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.25);
+        }
+
+
+        /* Mobile/narrow iframe handling - when sidebar is disabled, use full space */
+        @media (max-width: 800px) {
+            .layout:not(.sidebar-disabled) {
+                grid-template-columns: 1fr;
+            }
+
+            .layout:not(.sidebar-disabled) .sidebar {
+                height: 280px;
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+            }
+
+            .layout:not(.sidebar-disabled) .main {
+                height: calc(100vh - 280px);
+            }
+
+            /* When sidebar is disabled (iframe mode), ensure full viewport usage */
+            .layout.sidebar-disabled .main {
+                width: 100% !important;
+                height: 100vh !important;
+            }
+
+            .layout.sidebar-disabled .tab-panel {
+                padding: 0 !important;
+                width: 100% !important;
+                height: 100vh !important;
+            }
+
+            .layout.sidebar-disabled .network-panel {
+                width: 100% !important;
+                height: 100vh !important;
+                border-radius: 0 !important;
+                border: none !important;
+                max-width: none !important;
+            }
+
+            .layout.sidebar-disabled #networkCanvas {
+                width: 100% !important;
+                height: 100vh !important;
+                max-width: none !important;
+            }
+
+            /* Ensure iframe canvas takes full space on mobile */
+            canvas#networkCanvas {
+                width: 100% !important;
+                height: 100% !important;
+                min-width: 100% !important;
+                min-height: 100% !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <h1>Knowledge Graph Explorer</h1>
+            <p>Search, highlight, and inspect entities and relations to understand how the graph fits together.</p>
+            <div class="stats-grid" id="statsGrid"></div>
+            <div class="section">
+                <h2>Search</h2>
+                <input id="searchInput" class="search-input" type="text" placeholder="Search for entities or
+                    relations" />
+                <div class="search-hint">Matches are highlighted. Press Escape to clear.</div>
+            </div>
+            <div class="section" id="selectionSection">
+                <h2>Selection</h2>
+                <div id="selectionDetails" class="selection-card">Click a node or relation in the network to inspect
+                    details.</div>
+            </div>
+            <div class="section">
+                <h2>Entity Clusters</h2>
+                <div id="clusterList" class="list"></div>
+            </div>
+            <div class="section">
+                <h2>Top Entities</h2>
+                <div id="topEntities" class="list"></div>
+            </div>
+            <div class="section">
+                <h2>Top Relations</h2>
+                <div id="topRelations" class="list"></div>
+            </div>
+        </aside>
+        <main class="main">
+            <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar"></button>
+            <div class="tab-bar" style="padding-bottom: 10px; display: none;">
+                <button class="tab active" data-tab="network">Network</button>
+                <!-- <button class="tab" data-tab="relations">Relations</button>
+                <button class="tab" data-tab="insights">Insights</button> -->
+            </div>
+            <section id="network" class="tab-panel active">
+                <div class="network-panel">
+                    <canvas id="networkCanvas"></canvas>
+                </div>
+            </section>
+            <!-- <section id="relations" class="tab-panel">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Relation</th>
+                                <th>Object</th>
+                            </tr>
+                        </thead>
+                        <tbody id="relationsTable"></tbody>
+                    </table>
+                </div>
+            </section>
+            <section id="insights" class="tab-panel">
+                <div class="table-container" style="padding: 20px;">
+                    <div id="insightsContent"></div>
+                </div>
+            </section> -->
+        </main>
+    </div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script id="viz-data" type="application/json">
+{
+  "nodes": [
+    {
+      "id": "academic responsibilities",
+      "label": "academic responsibilities",
+      "cluster": "academic responsibilities",
+      "color": "#dfcf72",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e5"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "advocacy",
+      "label": "advocacy",
+      "cluster": "advocacy",
+      "color": "#25c4a1",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "young people"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e33"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "anxiety",
+      "label": "anxiety",
+      "cluster": "anxiety",
+      "color": "#a5e051",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e22"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "beauty standards",
+      "label": "beauty standards",
+      "cluster": "beauty standards",
+      "color": "#59daa8",
+      "degree": 3,
+      "indegree": 0,
+      "outdegree": 3,
+      "isRepresentative": true,
+      "radius": 24,
+      "neighbors": [
+        "feelings of inadequacy",
+        "negative social comparison",
+        "poor body image"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e8",
+          "e9",
+          "e10"
+        ]
+      }
+    },
+    {
+      "id": "brain's reward center",
+      "label": "brain's reward center",
+      "cluster": "brain's reward center",
+      "color": "#245ec8",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e32"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "connection",
+      "label": "connection",
+      "cluster": "connection",
+      "color": "#e45fb3",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e15"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Cyberbullying",
+      "label": "Cyberbullying",
+      "cluster": "Cyberbullying",
+      "color": "#64d646",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "emotional well-being",
+        "safety"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e26",
+          "e27"
+        ]
+      }
+    },
+    {
+      "id": "depression",
+      "label": "depression",
+      "cluster": "depression",
+      "color": "#a053d5",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e23"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "development",
+      "label": "development",
+      "cluster": "development",
+      "color": "#dbdc5d",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e16"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "diverse interests",
+      "label": "diverse interests",
+      "cluster": "diverse interests",
+      "color": "#c566f1",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e19"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "diverse perspectives",
+      "label": "diverse perspectives",
+      "cluster": "diverse perspectives",
+      "color": "#e7bc55",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e20"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "emotional well-being",
+      "label": "emotional well-being",
+      "cluster": "emotional well-being",
+      "color": "#1f28ce",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "Cyberbullying",
+        "harmful or inappropriate content"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e26",
+          "e28"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "empathy",
+      "label": "empathy",
+      "cluster": "empathy",
+      "color": "#42d932",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e30"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "face-to-face social interactions",
+      "label": "face-to-face social interactions",
+      "cluster": "face-to-face social interactions",
+      "color": "#d1951f",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e3"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "family activities",
+      "label": "family activities",
+      "cluster": "family activities",
+      "color": "#55ec40",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e6"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "feelings of inadequacy",
+      "label": "feelings of inadequacy",
+      "cluster": "feelings of inadequacy",
+      "color": "#8de472",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "beauty standards",
+        "unrealistic lifestyles"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e8",
+          "e11"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "friendships",
+      "label": "friendships",
+      "cluster": "friendships",
+      "color": "#9a6eea",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e2"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "harmful or inappropriate content",
+      "label": "harmful or inappropriate content",
+      "cluster": "harmful or inappropriate content",
+      "color": "#f2b36a",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "emotional well-being",
+        "safety"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e28",
+          "e29"
+        ]
+      }
+    },
+    {
+      "id": "identity formation",
+      "label": "identity formation",
+      "cluster": "identity formation",
+      "color": "#b54ce6",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e17"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "learning",
+      "label": "learning",
+      "cluster": "learning",
+      "color": "#d95656",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "young people"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e34"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "lower self-esteem",
+      "label": "lower self-esteem",
+      "cluster": "lower self-esteem",
+      "color": "#45d0c5",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e24"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "mental health issues",
+      "label": "mental health issues",
+      "cluster": "mental health issues",
+      "color": "#4d9bde",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e25"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "negative social comparison",
+      "label": "negative social comparison",
+      "cluster": "negative social comparison",
+      "color": "#be3552",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "beauty standards",
+        "unrealistic lifestyles"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e9",
+          "e12"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "new relationships",
+      "label": "new relationships",
+      "cluster": "new relationships",
+      "color": "#cedc58",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e0"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "poor body image",
+      "label": "poor body image",
+      "cluster": "poor body image",
+      "color": "#246ee8",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "beauty standards",
+        "unrealistic lifestyles"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e10",
+          "e13"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "safety",
+      "label": "safety",
+      "cluster": "safety",
+      "color": "#47d7e4",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "Cyberbullying",
+        "harmful or inappropriate content"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e27",
+          "e29"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "self-expression",
+      "label": "self-expression",
+      "cluster": "self-expression",
+      "color": "#4acb56",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e18"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "sleep patterns",
+      "label": "sleep patterns",
+      "cluster": "sleep patterns",
+      "color": "#5ae9c2",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e4"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "social awareness",
+      "label": "social awareness",
+      "cluster": "social awareness",
+      "color": "#e445d3",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e31"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Social media",
+      "label": "Social media",
+      "cluster": "Social media",
+      "color": "#aa5ae8",
+      "degree": 23,
+      "indegree": 0,
+      "outdegree": 23,
+      "isRepresentative": true,
+      "radius": 34,
+      "neighbors": [
+        "academic responsibilities",
+        "anxiety",
+        "brain's reward center",
+        "connection",
+        "depression",
+        "development",
+        "diverse interests",
+        "diverse perspectives",
+        "empathy",
+        "face-to-face social interactions",
+        "family activities",
+        "friendships",
+        "identity formation",
+        "lower self-esteem",
+        "mental health issues",
+        "new relationships",
+        "self-expression",
+        "sleep patterns",
+        "social awareness",
+        "social skills",
+        "supportive communities",
+        "young people",
+        "young, developing brains"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e0",
+          "e1",
+          "e2",
+          "e3",
+          "e4",
+          "e5",
+          "e6",
+          "e7",
+          "e14",
+          "e15",
+          "e16",
+          "e17",
+          "e18",
+          "e19",
+          "e20",
+          "e21",
+          "e22",
+          "e23",
+          "e24",
+          "e25",
+          "e30",
+          "e31",
+          "e32"
+        ]
+      }
+    },
+    {
+      "id": "social skills",
+      "label": "social skills",
+      "cluster": "social skills",
+      "color": "#325de6",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e7"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "supportive communities",
+      "label": "supportive communities",
+      "cluster": "supportive communities",
+      "color": "#66d9d2",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e1"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "unrealistic lifestyles",
+      "label": "unrealistic lifestyles",
+      "cluster": "unrealistic lifestyles",
+      "color": "#9eca4a",
+      "degree": 3,
+      "indegree": 0,
+      "outdegree": 3,
+      "isRepresentative": true,
+      "radius": 24,
+      "neighbors": [
+        "feelings of inadequacy",
+        "negative social comparison",
+        "poor body image"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e11",
+          "e12",
+          "e13"
+        ]
+      }
+    },
+    {
+      "id": "young people",
+      "label": "young people",
+      "cluster": "young people",
+      "color": "#d7b940",
+      "degree": 3,
+      "indegree": 1,
+      "outdegree": 2,
+      "isRepresentative": true,
+      "radius": 24,
+      "neighbors": [
+        "advocacy",
+        "learning",
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e21"
+        ],
+        "outgoing": [
+          "e33",
+          "e34"
+        ]
+      }
+    },
+    {
+      "id": "young, developing brains",
+      "label": "young, developing brains",
+      "cluster": "young, developing brains",
+      "color": "#b6852e",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Social media"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e14"
+        ],
+        "outgoing": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "Social media",
+      "target": "new relationships",
+      "predicate": "allows youth to build",
+      "cluster": "allows youth to build",
+      "color": "#f15b5b",
+      "tooltip": "Social media —allows youth to build→ new relationships"
+    },
+    {
+      "id": "e1",
+      "source": "Social media",
+      "target": "supportive communities",
+      "predicate": "allows youth to find",
+      "cluster": "allows youth to find",
+      "color": "#cb48d0",
+      "tooltip": "Social media —allows youth to find→ supportive communities"
+    },
+    {
+      "id": "e2",
+      "source": "Social media",
+      "target": "friendships",
+      "predicate": "allows youth to maintain",
+      "cluster": "allows youth to maintain",
+      "color": "#d235dc",
+      "tooltip": "Social media —allows youth to maintain→ friendships"
+    },
+    {
+      "id": "e3",
+      "source": "Social media",
+      "target": "face-to-face social interactions",
+      "predicate": "can diminish",
+      "cluster": "can diminish",
+      "color": "#e75ba3",
+      "tooltip": "Social media —can diminish→ face-to-face social interactions"
+    },
+    {
+      "id": "e4",
+      "source": "Social media",
+      "target": "sleep patterns",
+      "predicate": "can disrupt",
+      "cluster": "can disrupt",
+      "color": "#18d17c",
+      "tooltip": "Social media —can disrupt→ sleep patterns"
+    },
+    {
+      "id": "e5",
+      "source": "Social media",
+      "target": "academic responsibilities",
+      "predicate": "can distract from",
+      "cluster": "can distract from",
+      "color": "#94d979",
+      "tooltip": "Social media —can distract from→ academic responsibilities"
+    },
+    {
+      "id": "e6",
+      "source": "Social media",
+      "target": "family activities",
+      "predicate": "can distract from",
+      "cluster": "can distract from",
+      "color": "#94d979",
+      "tooltip": "Social media —can distract from→ family activities"
+    },
+    {
+      "id": "e7",
+      "source": "Social media",
+      "target": "social skills",
+      "predicate": "can hinder development of",
+      "cluster": "can hinder development of",
+      "color": "#f2b76a",
+      "tooltip": "Social media —can hinder development of→ social skills"
+    },
+    {
+      "id": "e8",
+      "source": "beauty standards",
+      "target": "feelings of inadequacy",
+      "predicate": "can lead to",
+      "cluster": "can lead to",
+      "color": "#72d462",
+      "tooltip": "beauty standards —can lead to→ feelings of inadequacy"
+    },
+    {
+      "id": "e9",
+      "source": "beauty standards",
+      "target": "negative social comparison",
+      "predicate": "can lead to",
+      "cluster": "can lead to",
+      "color": "#72d462",
+      "tooltip": "beauty standards —can lead to→ negative social comparison"
+    },
+    {
+      "id": "e10",
+      "source": "beauty standards",
+      "target": "poor body image",
+      "predicate": "can lead to",
+      "cluster": "can lead to",
+      "color": "#72d462",
+      "tooltip": "beauty standards —can lead to→ poor body image"
+    },
+    {
+      "id": "e11",
+      "source": "unrealistic lifestyles",
+      "target": "feelings of inadequacy",
+      "predicate": "can lead to",
+      "cluster": "can lead to",
+      "color": "#72d462",
+      "tooltip": "unrealistic lifestyles —can lead to→ feelings of inadequacy"
+    },
+    {
+      "id": "e12",
+      "source": "unrealistic lifestyles",
+      "target": "negative social comparison",
+      "predicate": "can lead to",
+      "cluster": "can lead to",
+      "color": "#72d462",
+      "tooltip": "unrealistic lifestyles —can lead to→ negative social comparison"
+    },
+    {
+      "id": "e13",
+      "source": "unrealistic lifestyles",
+      "target": "poor body image",
+      "predicate": "can lead to",
+      "cluster": "can lead to",
+      "color": "#72d462",
+      "tooltip": "unrealistic lifestyles —can lead to→ poor body image"
+    },
+    {
+      "id": "e14",
+      "source": "Social media",
+      "target": "young, developing brains",
+      "predicate": "complicates responsible usage for",
+      "cluster": "complicates responsible usage for",
+      "color": "#e08381",
+      "tooltip": "Social media —complicates responsible usage for→ young, developing brains"
+    },
+    {
+      "id": "e15",
+      "source": "Social media",
+      "target": "connection",
+      "predicate": "fosters",
+      "cluster": "fosters",
+      "color": "#3fe9eb",
+      "tooltip": "Social media —fosters→ connection"
+    },
+    {
+      "id": "e16",
+      "source": "Social media",
+      "target": "development",
+      "predicate": "influences",
+      "cluster": "influences",
+      "color": "#7ae29f",
+      "tooltip": "Social media —influences→ development"
+    },
+    {
+      "id": "e17",
+      "source": "Social media",
+      "target": "identity formation",
+      "predicate": "is a tool for",
+      "cluster": "is a tool for",
+      "color": "#d66b56",
+      "tooltip": "Social media —is a tool for→ identity formation"
+    },
+    {
+      "id": "e18",
+      "source": "Social media",
+      "target": "self-expression",
+      "predicate": "is a tool for",
+      "cluster": "is a tool for",
+      "color": "#d66b56",
+      "tooltip": "Social media —is a tool for→ self-expression"
+    },
+    {
+      "id": "e19",
+      "source": "Social media",
+      "target": "diverse interests",
+      "predicate": "is a tool for exploring",
+      "cluster": "is a tool for exploring",
+      "color": "#50ea7c",
+      "tooltip": "Social media —is a tool for exploring→ diverse interests"
+    },
+    {
+      "id": "e20",
+      "source": "Social media",
+      "target": "diverse perspectives",
+      "predicate": "is a tool for exploring",
+      "cluster": "is a tool for exploring",
+      "color": "#50ea7c",
+      "tooltip": "Social media —is a tool for exploring→ diverse perspectives"
+    },
+    {
+      "id": "e21",
+      "source": "Social media",
+      "target": "young people",
+      "predicate": "is an integral part of the lives of",
+      "cluster": "is an integral part of the lives of",
+      "color": "#ca4fd2",
+      "tooltip": "Social media —is an integral part of the lives of→ young people"
+    },
+    {
+      "id": "e22",
+      "source": "Social media",
+      "target": "anxiety",
+      "predicate": "is linked to",
+      "cluster": "is linked to",
+      "color": "#cc6724",
+      "tooltip": "Social media —is linked to→ anxiety"
+    },
+    {
+      "id": "e23",
+      "source": "Social media",
+      "target": "depression",
+      "predicate": "is linked to",
+      "cluster": "is linked to",
+      "color": "#cc6724",
+      "tooltip": "Social media —is linked to→ depression"
+    },
+    {
+      "id": "e24",
+      "source": "Social media",
+      "target": "lower self-esteem",
+      "predicate": "is linked to",
+      "cluster": "is linked to",
+      "color": "#cc6724",
+      "tooltip": "Social media —is linked to→ lower self-esteem"
+    },
+    {
+      "id": "e25",
+      "source": "Social media",
+      "target": "mental health issues",
+      "predicate": "is linked to",
+      "cluster": "is linked to",
+      "color": "#cc6724",
+      "tooltip": "Social media —is linked to→ mental health issues"
+    },
+    {
+      "id": "e26",
+      "source": "Cyberbullying",
+      "target": "emotional well-being",
+      "predicate": "poses risks to",
+      "cluster": "poses risks to",
+      "color": "#15ade5",
+      "tooltip": "Cyberbullying —poses risks to→ emotional well-being"
+    },
+    {
+      "id": "e27",
+      "source": "Cyberbullying",
+      "target": "safety",
+      "predicate": "poses risks to",
+      "cluster": "poses risks to",
+      "color": "#15ade5",
+      "tooltip": "Cyberbullying —poses risks to→ safety"
+    },
+    {
+      "id": "e28",
+      "source": "harmful or inappropriate content",
+      "target": "emotional well-being",
+      "predicate": "poses risks to",
+      "cluster": "poses risks to",
+      "color": "#15ade5",
+      "tooltip": "harmful or inappropriate content —poses risks to→ emotional well-being"
+    },
+    {
+      "id": "e29",
+      "source": "harmful or inappropriate content",
+      "target": "safety",
+      "predicate": "poses risks to",
+      "cluster": "poses risks to",
+      "color": "#15ade5",
+      "tooltip": "harmful or inappropriate content —poses risks to→ safety"
+    },
+    {
+      "id": "e30",
+      "source": "Social media",
+      "target": "empathy",
+      "predicate": "promotes",
+      "cluster": "promotes",
+      "color": "#7fef61",
+      "tooltip": "Social media —promotes→ empathy"
+    },
+    {
+      "id": "e31",
+      "source": "Social media",
+      "target": "social awareness",
+      "predicate": "promotes",
+      "cluster": "promotes",
+      "color": "#7fef61",
+      "tooltip": "Social media —promotes→ social awareness"
+    },
+    {
+      "id": "e32",
+      "source": "Social media",
+      "target": "brain's reward center",
+      "predicate": "stimulates",
+      "cluster": "stimulates",
+      "color": "#16e35e",
+      "tooltip": "Social media —stimulates→ brain's reward center"
+    },
+    {
+      "id": "e33",
+      "source": "young people",
+      "target": "advocacy",
+      "predicate": "utilize social media for",
+      "cluster": "utilize social media for",
+      "color": "#c72b1f",
+      "tooltip": "young people —utilize social media for→ advocacy"
+    },
+    {
+      "id": "e34",
+      "source": "young people",
+      "target": "learning",
+      "predicate": "utilize social media for",
+      "cluster": "utilize social media for",
+      "color": "#c72b1f",
+      "tooltip": "young people —utilize social media for→ learning"
+    }
+  ],
+  "clusters": [
+    {
+      "id": "lower self-esteem",
+      "label": "lower self-esteem",
+      "members": [
+        "lower self-esteem"
+      ],
+      "size": 1,
+      "color": "#45d0c5"
+    },
+    {
+      "id": "beauty standards",
+      "label": "beauty standards",
+      "members": [
+        "beauty standards"
+      ],
+      "size": 1,
+      "color": "#59daa8"
+    },
+    {
+      "id": "identity formation",
+      "label": "identity formation",
+      "members": [
+        "identity formation"
+      ],
+      "size": 1,
+      "color": "#b54ce6"
+    },
+    {
+      "id": "Social media",
+      "label": "Social media",
+      "members": [
+        "Social media"
+      ],
+      "size": 1,
+      "color": "#aa5ae8"
+    },
+    {
+      "id": "poor body image",
+      "label": "poor body image",
+      "members": [
+        "poor body image"
+      ],
+      "size": 1,
+      "color": "#246ee8"
+    },
+    {
+      "id": "social skills",
+      "label": "social skills",
+      "members": [
+        "social skills"
+      ],
+      "size": 1,
+      "color": "#325de6"
+    },
+    {
+      "id": "empathy",
+      "label": "empathy",
+      "members": [
+        "empathy"
+      ],
+      "size": 1,
+      "color": "#42d932"
+    },
+    {
+      "id": "friendships",
+      "label": "friendships",
+      "members": [
+        "friendships"
+      ],
+      "size": 1,
+      "color": "#9a6eea"
+    },
+    {
+      "id": "anxiety",
+      "label": "anxiety",
+      "members": [
+        "anxiety"
+      ],
+      "size": 1,
+      "color": "#a5e051"
+    },
+    {
+      "id": "advocacy",
+      "label": "advocacy",
+      "members": [
+        "advocacy"
+      ],
+      "size": 1,
+      "color": "#25c4a1"
+    },
+    {
+      "id": "connection",
+      "label": "connection",
+      "members": [
+        "connection"
+      ],
+      "size": 1,
+      "color": "#e45fb3"
+    },
+    {
+      "id": "Cyberbullying",
+      "label": "Cyberbullying",
+      "members": [
+        "Cyberbullying"
+      ],
+      "size": 1,
+      "color": "#64d646"
+    },
+    {
+      "id": "sleep patterns",
+      "label": "sleep patterns",
+      "members": [
+        "sleep patterns"
+      ],
+      "size": 1,
+      "color": "#5ae9c2"
+    },
+    {
+      "id": "harmful or inappropriate content",
+      "label": "harmful or inappropriate content",
+      "members": [
+        "harmful or inappropriate content"
+      ],
+      "size": 1,
+      "color": "#f2b36a"
+    },
+    {
+      "id": "face-to-face social interactions",
+      "label": "face-to-face social interactions",
+      "members": [
+        "face-to-face social interactions"
+      ],
+      "size": 1,
+      "color": "#d1951f"
+    },
+    {
+      "id": "supportive communities",
+      "label": "supportive communities",
+      "members": [
+        "supportive communities"
+      ],
+      "size": 1,
+      "color": "#66d9d2"
+    },
+    {
+      "id": "diverse interests",
+      "label": "diverse interests",
+      "members": [
+        "diverse interests"
+      ],
+      "size": 1,
+      "color": "#c566f1"
+    },
+    {
+      "id": "emotional well-being",
+      "label": "emotional well-being",
+      "members": [
+        "emotional well-being"
+      ],
+      "size": 1,
+      "color": "#1f28ce"
+    },
+    {
+      "id": "self-expression",
+      "label": "self-expression",
+      "members": [
+        "self-expression"
+      ],
+      "size": 1,
+      "color": "#4acb56"
+    },
+    {
+      "id": "unrealistic lifestyles",
+      "label": "unrealistic lifestyles",
+      "members": [
+        "unrealistic lifestyles"
+      ],
+      "size": 1,
+      "color": "#9eca4a"
+    },
+    {
+      "id": "feelings of inadequacy",
+      "label": "feelings of inadequacy",
+      "members": [
+        "feelings of inadequacy"
+      ],
+      "size": 1,
+      "color": "#8de472"
+    },
+    {
+      "id": "depression",
+      "label": "depression",
+      "members": [
+        "depression"
+      ],
+      "size": 1,
+      "color": "#a053d5"
+    },
+    {
+      "id": "academic responsibilities",
+      "label": "academic responsibilities",
+      "members": [
+        "academic responsibilities"
+      ],
+      "size": 1,
+      "color": "#dfcf72"
+    },
+    {
+      "id": "safety",
+      "label": "safety",
+      "members": [
+        "safety"
+      ],
+      "size": 1,
+      "color": "#47d7e4"
+    },
+    {
+      "id": "diverse perspectives",
+      "label": "diverse perspectives",
+      "members": [
+        "diverse perspectives"
+      ],
+      "size": 1,
+      "color": "#e7bc55"
+    },
+    {
+      "id": "new relationships",
+      "label": "new relationships",
+      "members": [
+        "new relationships"
+      ],
+      "size": 1,
+      "color": "#cedc58"
+    },
+    {
+      "id": "mental health issues",
+      "label": "mental health issues",
+      "members": [
+        "mental health issues"
+      ],
+      "size": 1,
+      "color": "#4d9bde"
+    },
+    {
+      "id": "family activities",
+      "label": "family activities",
+      "members": [
+        "family activities"
+      ],
+      "size": 1,
+      "color": "#55ec40"
+    },
+    {
+      "id": "negative social comparison",
+      "label": "negative social comparison",
+      "members": [
+        "negative social comparison"
+      ],
+      "size": 1,
+      "color": "#be3552"
+    },
+    {
+      "id": "young, developing brains",
+      "label": "young, developing brains",
+      "members": [
+        "young, developing brains"
+      ],
+      "size": 1,
+      "color": "#b6852e"
+    },
+    {
+      "id": "young people",
+      "label": "young people",
+      "members": [
+        "young people"
+      ],
+      "size": 1,
+      "color": "#d7b940"
+    },
+    {
+      "id": "brain's reward center",
+      "label": "brain's reward center",
+      "members": [
+        "brain's reward center"
+      ],
+      "size": 1,
+      "color": "#245ec8"
+    },
+    {
+      "id": "development",
+      "label": "development",
+      "members": [
+        "development"
+      ],
+      "size": 1,
+      "color": "#dbdc5d"
+    },
+    {
+      "id": "learning",
+      "label": "learning",
+      "members": [
+        "learning"
+      ],
+      "size": 1,
+      "color": "#d95656"
+    },
+    {
+      "id": "social awareness",
+      "label": "social awareness",
+      "members": [
+        "social awareness"
+      ],
+      "size": 1,
+      "color": "#e445d3"
+    }
+  ],
+  "edgeClusters": [
+    {
+      "id": "allows youth to build",
+      "label": "allows youth to build",
+      "members": [
+        "allows youth to build"
+      ],
+      "size": 1,
+      "color": "#f15b5b"
+    },
+    {
+      "id": "can lead to",
+      "label": "can lead to",
+      "members": [
+        "can lead to"
+      ],
+      "size": 1,
+      "color": "#72d462"
+    },
+    {
+      "id": "fosters",
+      "label": "fosters",
+      "members": [
+        "fosters"
+      ],
+      "size": 1,
+      "color": "#3fe9eb"
+    },
+    {
+      "id": "utilize social media for",
+      "label": "utilize social media for",
+      "members": [
+        "utilize social media for"
+      ],
+      "size": 1,
+      "color": "#c72b1f"
+    },
+    {
+      "id": "can distract from",
+      "label": "can distract from",
+      "members": [
+        "can distract from"
+      ],
+      "size": 1,
+      "color": "#94d979"
+    },
+    {
+      "id": "is linked to",
+      "label": "is linked to",
+      "members": [
+        "is linked to"
+      ],
+      "size": 1,
+      "color": "#cc6724"
+    },
+    {
+      "id": "promotes",
+      "label": "promotes",
+      "members": [
+        "promotes"
+      ],
+      "size": 1,
+      "color": "#7fef61"
+    },
+    {
+      "id": "can hinder development of",
+      "label": "can hinder development of",
+      "members": [
+        "can hinder development of"
+      ],
+      "size": 1,
+      "color": "#f2b76a"
+    },
+    {
+      "id": "influences",
+      "label": "influences",
+      "members": [
+        "influences"
+      ],
+      "size": 1,
+      "color": "#7ae29f"
+    },
+    {
+      "id": "is an integral part of the lives of",
+      "label": "is an integral part of the lives of",
+      "members": [
+        "is an integral part of the lives of"
+      ],
+      "size": 1,
+      "color": "#ca4fd2"
+    },
+    {
+      "id": "complicates responsible usage for",
+      "label": "complicates responsible usage for",
+      "members": [
+        "complicates responsible usage for"
+      ],
+      "size": 1,
+      "color": "#e08381"
+    },
+    {
+      "id": "poses risks to",
+      "label": "poses risks to",
+      "members": [
+        "poses risks to"
+      ],
+      "size": 1,
+      "color": "#15ade5"
+    },
+    {
+      "id": "allows youth to maintain",
+      "label": "allows youth to maintain",
+      "members": [
+        "allows youth to maintain"
+      ],
+      "size": 1,
+      "color": "#d235dc"
+    },
+    {
+      "id": "can diminish",
+      "label": "can diminish",
+      "members": [
+        "can diminish"
+      ],
+      "size": 1,
+      "color": "#e75ba3"
+    },
+    {
+      "id": "allows youth to find",
+      "label": "allows youth to find",
+      "members": [
+        "allows youth to find"
+      ],
+      "size": 1,
+      "color": "#cb48d0"
+    },
+    {
+      "id": "is a tool for",
+      "label": "is a tool for",
+      "members": [
+        "is a tool for"
+      ],
+      "size": 1,
+      "color": "#d66b56"
+    },
+    {
+      "id": "stimulates",
+      "label": "stimulates",
+      "members": [
+        "stimulates"
+      ],
+      "size": 1,
+      "color": "#16e35e"
+    },
+    {
+      "id": "is a tool for exploring",
+      "label": "is a tool for exploring",
+      "members": [
+        "is a tool for exploring"
+      ],
+      "size": 1,
+      "color": "#50ea7c"
+    },
+    {
+      "id": "can disrupt",
+      "label": "can disrupt",
+      "members": [
+        "can disrupt"
+      ],
+      "size": 1,
+      "color": "#18d17c"
+    }
+  ],
+  "topEntities": [
+    {
+      "label": "Social media",
+      "degree": 23,
+      "indegree": 0,
+      "outdegree": 23,
+      "cluster": "Social media"
+    },
+    {
+      "label": "beauty standards",
+      "degree": 3,
+      "indegree": 0,
+      "outdegree": 3,
+      "cluster": "beauty standards"
+    },
+    {
+      "label": "unrealistic lifestyles",
+      "degree": 3,
+      "indegree": 0,
+      "outdegree": 3,
+      "cluster": "unrealistic lifestyles"
+    },
+    {
+      "label": "young people",
+      "degree": 3,
+      "indegree": 1,
+      "outdegree": 2,
+      "cluster": "young people"
+    },
+    {
+      "label": "Cyberbullying",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "cluster": "Cyberbullying"
+    },
+    {
+      "label": "emotional well-being",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "cluster": "emotional well-being"
+    },
+    {
+      "label": "feelings of inadequacy",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "cluster": "feelings of inadequacy"
+    },
+    {
+      "label": "harmful or inappropriate content",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "cluster": "harmful or inappropriate content"
+    },
+    {
+      "label": "negative social comparison",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "cluster": "negative social comparison"
+    },
+    {
+      "label": "poor body image",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "cluster": "poor body image"
+    }
+  ],
+  "topRelations": [
+    {
+      "predicate": "can lead to",
+      "count": 6,
+      "cluster": "can lead to",
+      "color": "#72d462"
+    },
+    {
+      "predicate": "is linked to",
+      "count": 4,
+      "cluster": "is linked to",
+      "color": "#cc6724"
+    },
+    {
+      "predicate": "poses risks to",
+      "count": 4,
+      "cluster": "poses risks to",
+      "color": "#15ade5"
+    },
+    {
+      "predicate": "can distract from",
+      "count": 2,
+      "cluster": "can distract from",
+      "color": "#94d979"
+    },
+    {
+      "predicate": "is a tool for",
+      "count": 2,
+      "cluster": "is a tool for",
+      "color": "#d66b56"
+    },
+    {
+      "predicate": "is a tool for exploring",
+      "count": 2,
+      "cluster": "is a tool for exploring",
+      "color": "#50ea7c"
+    },
+    {
+      "predicate": "promotes",
+      "count": 2,
+      "cluster": "promotes",
+      "color": "#7fef61"
+    },
+    {
+      "predicate": "utilize social media for",
+      "count": 2,
+      "cluster": "utilize social media for",
+      "color": "#c72b1f"
+    },
+    {
+      "predicate": "allows youth to build",
+      "count": 1,
+      "cluster": "allows youth to build",
+      "color": "#f15b5b"
+    },
+    {
+      "predicate": "allows youth to find",
+      "count": 1,
+      "cluster": "allows youth to find",
+      "color": "#cb48d0"
+    }
+  ],
+  "stats": {
+    "entities": 35,
+    "relations": 35,
+    "relationTypes": 19,
+    "entityClusters": 35,
+    "edgeClusters": 19,
+    "isolatedEntities": 0,
+    "components": 3,
+    "averageDegree": 2.0,
+    "density": 0.029
+  },
+  "isolatedEntities": [],
+  "components": [
+    {
+      "size": 26,
+      "members": [
+        "academic responsibilities",
+        "advocacy",
+        "anxiety",
+        "brain's reward center",
+        "connection",
+        "depression",
+        "development",
+        "diverse interests",
+        "diverse perspectives",
+        "empathy",
+        "face-to-face social interactions",
+        "family activities",
+        "friendships",
+        "identity formation",
+        "learning",
+        "lower self-esteem",
+        "mental health issues",
+        "new relationships",
+        "self-expression",
+        "sleep patterns",
+        "social awareness",
+        "Social media",
+        "social skills",
+        "supportive communities",
+        "young people",
+        "young, developing brains"
+      ]
+    },
+    {
+      "size": 5,
+      "members": [
+        "beauty standards",
+        "feelings of inadequacy",
+        "negative social comparison",
+        "poor body image",
+        "unrealistic lifestyles"
+      ]
+    },
+    {
+      "size": 4,
+      "members": [
+        "Cyberbullying",
+        "emotional well-being",
+        "harmful or inappropriate content",
+        "safety"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "Social media",
+      "predicate": "allows youth to build",
+      "target": "new relationships",
+      "edgeId": "e0",
+      "color": "#f15b5b"
+    },
+    {
+      "source": "Social media",
+      "predicate": "allows youth to find",
+      "target": "supportive communities",
+      "edgeId": "e1",
+      "color": "#cb48d0"
+    },
+    {
+      "source": "Social media",
+      "predicate": "allows youth to maintain",
+      "target": "friendships",
+      "edgeId": "e2",
+      "color": "#d235dc"
+    },
+    {
+      "source": "Social media",
+      "predicate": "can diminish",
+      "target": "face-to-face social interactions",
+      "edgeId": "e3",
+      "color": "#e75ba3"
+    },
+    {
+      "source": "Social media",
+      "predicate": "can disrupt",
+      "target": "sleep patterns",
+      "edgeId": "e4",
+      "color": "#18d17c"
+    },
+    {
+      "source": "Social media",
+      "predicate": "can distract from",
+      "target": "academic responsibilities",
+      "edgeId": "e5",
+      "color": "#94d979"
+    },
+    {
+      "source": "Social media",
+      "predicate": "can distract from",
+      "target": "family activities",
+      "edgeId": "e6",
+      "color": "#94d979"
+    },
+    {
+      "source": "Social media",
+      "predicate": "can hinder development of",
+      "target": "social skills",
+      "edgeId": "e7",
+      "color": "#f2b76a"
+    },
+    {
+      "source": "beauty standards",
+      "predicate": "can lead to",
+      "target": "feelings of inadequacy",
+      "edgeId": "e8",
+      "color": "#72d462"
+    },
+    {
+      "source": "beauty standards",
+      "predicate": "can lead to",
+      "target": "negative social comparison",
+      "edgeId": "e9",
+      "color": "#72d462"
+    },
+    {
+      "source": "beauty standards",
+      "predicate": "can lead to",
+      "target": "poor body image",
+      "edgeId": "e10",
+      "color": "#72d462"
+    },
+    {
+      "source": "unrealistic lifestyles",
+      "predicate": "can lead to",
+      "target": "feelings of inadequacy",
+      "edgeId": "e11",
+      "color": "#72d462"
+    },
+    {
+      "source": "unrealistic lifestyles",
+      "predicate": "can lead to",
+      "target": "negative social comparison",
+      "edgeId": "e12",
+      "color": "#72d462"
+    },
+    {
+      "source": "unrealistic lifestyles",
+      "predicate": "can lead to",
+      "target": "poor body image",
+      "edgeId": "e13",
+      "color": "#72d462"
+    },
+    {
+      "source": "Social media",
+      "predicate": "complicates responsible usage for",
+      "target": "young, developing brains",
+      "edgeId": "e14",
+      "color": "#e08381"
+    },
+    {
+      "source": "Social media",
+      "predicate": "fosters",
+      "target": "connection",
+      "edgeId": "e15",
+      "color": "#3fe9eb"
+    },
+    {
+      "source": "Social media",
+      "predicate": "influences",
+      "target": "development",
+      "edgeId": "e16",
+      "color": "#7ae29f"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is a tool for",
+      "target": "identity formation",
+      "edgeId": "e17",
+      "color": "#d66b56"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is a tool for",
+      "target": "self-expression",
+      "edgeId": "e18",
+      "color": "#d66b56"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is a tool for exploring",
+      "target": "diverse interests",
+      "edgeId": "e19",
+      "color": "#50ea7c"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is a tool for exploring",
+      "target": "diverse perspectives",
+      "edgeId": "e20",
+      "color": "#50ea7c"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is an integral part of the lives of",
+      "target": "young people",
+      "edgeId": "e21",
+      "color": "#ca4fd2"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is linked to",
+      "target": "anxiety",
+      "edgeId": "e22",
+      "color": "#cc6724"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is linked to",
+      "target": "depression",
+      "edgeId": "e23",
+      "color": "#cc6724"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is linked to",
+      "target": "lower self-esteem",
+      "edgeId": "e24",
+      "color": "#cc6724"
+    },
+    {
+      "source": "Social media",
+      "predicate": "is linked to",
+      "target": "mental health issues",
+      "edgeId": "e25",
+      "color": "#cc6724"
+    },
+    {
+      "source": "Cyberbullying",
+      "predicate": "poses risks to",
+      "target": "emotional well-being",
+      "edgeId": "e26",
+      "color": "#15ade5"
+    },
+    {
+      "source": "Cyberbullying",
+      "predicate": "poses risks to",
+      "target": "safety",
+      "edgeId": "e27",
+      "color": "#15ade5"
+    },
+    {
+      "source": "harmful or inappropriate content",
+      "predicate": "poses risks to",
+      "target": "emotional well-being",
+      "edgeId": "e28",
+      "color": "#15ade5"
+    },
+    {
+      "source": "harmful or inappropriate content",
+      "predicate": "poses risks to",
+      "target": "safety",
+      "edgeId": "e29",
+      "color": "#15ade5"
+    },
+    {
+      "source": "Social media",
+      "predicate": "promotes",
+      "target": "empathy",
+      "edgeId": "e30",
+      "color": "#7fef61"
+    },
+    {
+      "source": "Social media",
+      "predicate": "promotes",
+      "target": "social awareness",
+      "edgeId": "e31",
+      "color": "#7fef61"
+    },
+    {
+      "source": "Social media",
+      "predicate": "stimulates",
+      "target": "brain's reward center",
+      "edgeId": "e32",
+      "color": "#16e35e"
+    },
+    {
+      "source": "young people",
+      "predicate": "utilize social media for",
+      "target": "advocacy",
+      "edgeId": "e33",
+      "color": "#c72b1f"
+    },
+    {
+      "source": "young people",
+      "predicate": "utilize social media for",
+      "target": "learning",
+      "edgeId": "e34",
+      "color": "#c72b1f"
+    }
+  ]
+}
+    </script>
+    <script>
+        (function () {
+            console.log('[iframe] Script starting - mobile check:', window.innerWidth <= 768);
+            console.log('[iframe] User agent:', navigator.userAgent);
+
+            const dataElement = document.getElementById('viz-data');
+            if (!dataElement) {
+                console.error('[iframe] viz-data element not found!');
+                return;
+            }
+
+            let vizData;
+            try {
+                vizData = JSON.parse(dataElement.textContent);
+                console.log('[iframe] Data parsed successfully:', vizData.nodes?.length, 'nodes');
+            } catch (e) {
+                console.error('[iframe] Failed to parse data:', e);
+                return;
+            }
+
+            const state = {
+                activeElement: null,
+                focusCluster: null,
+                focusPredicate: null,
+                searchTerm: '',
+                sidebarCollapsed: false,
+                sidebarDisabled: false
+            };
+
+            const nodeById = Object.fromEntries(vizData.nodes.map(node => [node.id, node]));
+            const edgeById = Object.fromEntries(vizData.edges.map(edge => [edge.id, edge]));
+            const clusterById = Object.fromEntries(vizData.clusters.map(cluster => [cluster.id, cluster]));
+            const edgesByPredicate = {};
+            vizData.edges.forEach(edge => {
+                if (!edgesByPredicate[edge.predicate]) {
+                    edgesByPredicate[edge.predicate] = [];
+                }
+                edgesByPredicate[edge.predicate].push(edge.id);
+            });
+
+            const nodesByCluster = {};
+            vizData.clusters.forEach(cluster => {
+                cluster.members.forEach(member => {
+                    if (!nodesByCluster[cluster.id]) {
+                        nodesByCluster[cluster.id] = new Set();
+                    }
+                    nodesByCluster[cluster.id].add(member);
+                });
+            });
+
+            function renderStats() {
+                const grid = document.getElementById('statsGrid');
+                const stats = vizData.stats;
+                const entries = [
+                    { label: 'Entities', value: stats.entities },
+                    { label: 'Relations', value: stats.relations },
+                    { label: 'Relation types', value: stats.relationTypes },
+                    { label: 'Entity clusters', value: stats.entityClusters },
+                    { label: 'Edge clusters', value: stats.edgeClusters },
+                    { label: 'Isolated entities', value: stats.isolatedEntities },
+                    { label: 'Components', value: stats.components },
+                    { label: 'Average degree', value: stats.averageDegree }
+                ];
+                grid.innerHTML = entries
+                    .map(entry => `
+                        <div class="stat-card">
+                            <div class="stat-value">${entry.value}</div>
+                            <div>${entry.label}</div>
+                        </div>
+                    `)
+                    .join('');
+            }
+
+            function renderTopLists() {
+                const topEntitiesContainer = document.getElementById('topEntities');
+                const topRelationsContainer = document.getElementById('topRelations');
+
+                const entityItems = vizData.topEntities.map(item => {
+                    const clusterLabel = item.cluster ? `${item.cluster}` : 'Unclustered';
+                    return `
+                        <div class="list-item">
+                            <div>
+                                <strong>${item.label}</strong>
+                                <div class="meta">Cluster: ${clusterLabel}</div>
+                            </div>
+                            <div>${item.degree}</div>
+                        </div>
+                    `;
+                });
+                topEntitiesContainer.innerHTML = entityItems.join('') || '<div class="meta">No entities</div>';
+
+                const relationItems = vizData.topRelations.map(item => `
+                    <div class="list-item relation-item" data-predicate="${item.predicate}">
+                        <div>
+                            <strong>${item.predicate}</strong>
+                            <div class="meta">${item.count} relations</div>
+                        </div>
+                        <div class="pill" style="background: ${item.color}1a; border: 1px solid ${item.color};">${item.count}</div>
+                    </div>
+                `);
+                topRelationsContainer.innerHTML = relationItems.join('') || '<div class="meta">No relations</div>';
+            }
+
+            function renderClusters() {
+                const container = document.getElementById('clusterList');
+                if (!vizData.clusters.length) {
+                    container.innerHTML = '<div class="meta">No cluster information provided.</div>';
+                    return;
+                }
+                container.innerHTML = vizData.clusters
+                    .map(cluster => `
+                        <button class="list-item cluster-item" data-cluster="${cluster.id}" style="border-left-color: ${cluster.color};">
+                            <div>
+                                <strong>${cluster.label}</strong>
+                                <div class="meta">${cluster.size} members</div>
+                            </div>
+                            <span class="legend-swatch" style="background: ${cluster.color};"></span>
+                        </button>
+                    `)
+                    .join('');
+            }
+
+            // function renderRelationsTable() {
+            //     const tbody = document.getElementById('relationsTable');
+            //     tbody.innerHTML = vizData.relations
+            //         .map(rel => `
+            //             <tr data-edge="${rel.edgeId}">
+            //                 <td>${rel.source}</td>
+            //                 <td><span class="pill" style="border: 1px solid ${rel.color}; background: ${rel.color}1a;">${rel.predicate}</span></td>
+            //                 <td>${rel.target}</td>
+            //             </tr>
+            //         `)
+            //         .join('');
+            // }
+
+            // function renderInsights() {
+            //     const insights = document.getElementById('insightsContent');
+            //     const clusters = vizData.clusters
+            //         .map(cluster => `
+            //             <div class="list-item" style="border-left: 4px solid ${cluster.color};">
+            //                 <div>
+            //                     <strong>${cluster.label}</strong>
+            //                     <div class="meta">Members: ${cluster.members.join(', ')}</div>
+            //                 </div>
+            //                 <div>${cluster.size}</div>
+            //             </div>
+            //         `)
+            //         .join('');
+
+            //     const components = vizData.components
+            //         .map((component, index) => `
+            //             <div class="list-item">
+            //                 <div>
+            //                     <strong>Component ${index + 1}</strong>
+            //                     <div class="meta">${component.members.join(', ')}</div>
+            //                 </div>
+            //                 <div>${component.size}</div>
+            //             </div>
+            //         `)
+            //         .join('');
+
+            //     const isolates = vizData.isolatedEntities.length
+            //         ? vizData.isolatedEntities.join(', ')
+            //         : 'None';
+
+            //     insights.innerHTML = `
+            //         <div class="section">
+            //             <h2>Clusters</h2>
+            //             <div class="list">${clusters || '<div class="meta">No clusters</div>'}</div>
+            //         </div>
+            //         <div class="section">
+            //             <h2>Connected components</h2>
+            //             <div class="list">${components || '<div class="meta">Single connected component</div>'}</div>
+            //         </div>
+            //         <div class="section">
+            //             <h2>Isolated entities</h2>
+            //             <div class="meta">${isolates}</div>
+            //         </div>
+            //     `;
+            // }
+
+            function setActiveElement(element) {
+                state.activeElement = element;
+                renderSelectionDetails();
+                updateHighlights();
+
+                // Notify parent about selection change
+                if (window.parent !== window && state.sidebarDisabled) {
+                    const selection = element ? {
+                        type: element.type,
+                        id: element.id,
+                        ...getElementDetails(element)
+                    } : null;
+                    window.parent.postMessage({
+                        type: 'selectionChanged',
+                        selection: selection
+                    }, '*');
+                }
+            }
+
+            function getElementDetails(element) {
+                if (!element) return {};
+
+                if (element.type === 'node') {
+                    const node = nodeById[element.id];
+                    return {
+                        label: node.label,
+                        cluster: node.cluster,
+                        degree: node.degree,
+                        indegree: node.indegree,
+                        outdegree: node.outdegree,
+                        neighbors: node.neighbors
+                    };
+                } else if (element.type === 'edge') {
+                    const edge = edgeById[element.id];
+                    return {
+                        source: edge.source,
+                        target: edge.target,
+                        predicate: edge.predicate,
+                        cluster: edge.cluster
+                    };
+                }
+                return {};
+            }
+
+            function clearActiveElement() {
+                state.activeElement = null;
+                renderSelectionDetails();
+                updateHighlights();
+            }
+
+            function renderSelectionDetails() {
+                const panel = document.getElementById('selectionDetails');
+                const active = state.activeElement;
+                if (!active) {
+                    panel.innerHTML = 'Click a node or relation in the network to inspect details.';
+                    return;
+                }
+
+                if (active.type === 'node') {
+                    const node = nodeById[active.id];
+                    const cluster = node.cluster ? `Cluster: ${node.cluster}` : 'Unclustered';
+                    const neighbors = node.neighbors.length ? node.neighbors.join(', ') : 'None';
+                    panel.innerHTML = `
+                        <h3>${node.label}</h3>
+                        <ul>
+                            <li>${cluster}</li>
+                            <li>Total degree: ${node.degree}</li>
+                            <li>Outgoing: ${node.outdegree}</li>
+                            <li>Incoming: ${node.indegree}</li>
+                            <li>Neighbors: ${neighbors}</li>
+                        </ul>
+                    `;
+                } else if (active.type === 'edge') {
+                    const edge = edgeById[active.id];
+                    const cluster = edge.cluster ? `Cluster: ${edge.cluster}` : 'Unclustered';
+                    panel.innerHTML = `
+                        <h3>${edge.source} → ${edge.target}</h3>
+                        <ul>
+                            <li>Relation: ${edge.predicate}</li>
+                            <li>${cluster}</li>
+                        </ul>
+                    `;
+                }
+            }
+
+            function toggleClusterFocus(clusterId) {
+                if (state.focusCluster === clusterId) {
+                    state.focusCluster = null;
+                } else {
+                    state.focusCluster = clusterId;
+                }
+                updateActiveButtons();
+                updateHighlights();
+            }
+
+            function togglePredicateFocus(predicate) {
+                if (state.focusPredicate === predicate) {
+                    state.focusPredicate = null;
+                } else {
+                    state.focusPredicate = predicate;
+                }
+                updateActiveButtons();
+                updateHighlights();
+            }
+
+            function updateActiveButtons() {
+                document.querySelectorAll('.cluster-item').forEach(item => {
+                    const clusterId = item.getAttribute('data-cluster');
+                    item.classList.toggle('active', state.focusCluster === clusterId);
+                });
+                document.querySelectorAll('.relation-item').forEach(item => {
+                    const predicate = item.getAttribute('data-predicate');
+                    item.classList.toggle('active', state.focusPredicate === predicate);
+                });
+            }
+
+            // Canvas-based network visualization
+            let canvas, ctx, transform, simulation;
+            let nodes, edges;
+            let highlightedNodes = new Set();
+            let highlightedEdges = new Set();
+            let isFiltering = false;
+
+            function createNetwork() {
+                console.log('[iframe] createNetwork starting...');
+
+                if (typeof d3 === 'undefined') {
+                    console.error('[iframe] D3.js not loaded!');
+                    return;
+                }
+                console.log('[iframe] D3.js version:', d3.version);
+
+                canvas = document.getElementById('networkCanvas');
+                if (!canvas) {
+                    console.error('[iframe] Canvas element not found!');
+                    return;
+                }
+
+                ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error('[iframe] Canvas context not available!');
+                    return;
+                }
+
+                // Force a layout recalculation to ensure proper sizing
+                canvas.offsetHeight; // Trigger reflow
+
+                // Set canvas size with device pixel ratio for crisp rendering
+                const rect = canvas.getBoundingClientRect();
+                console.log('[iframe] Canvas rect:', rect.width, 'x', rect.height);
+
+                // Ensure minimum size for mobile/narrow viewports
+                const width = Math.max(rect.width, 320);
+                const height = Math.max(rect.height, 200);
+
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                ctx.scale(dpr, dpr);
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+
+                // Initialize transform for zooming/panning
+                transform = d3.zoomIdentity;
+
+                // Clone data for simulation
+                nodes = vizData.nodes.map(node => ({ ...node }));
+                edges = vizData.edges.map(edge => ({ ...edge }));
+
+                // Create D3 force simulation
+                simulation = d3
+                    .forceSimulation(nodes)
+                    .force('link', d3.forceLink(edges).id(d => d.id).distance(120).strength(0.3))
+                    .force('charge', d3.forceManyBody().strength(-280))
+                    .force('center', d3.forceCenter(width / 2, height / 2))
+                    .force('collision', d3.forceCollide().radius(d => d.radius + 12));
+
+                // Set up zoom behavior
+                const zoom = d3.zoom()
+                    .scaleExtent([0.25, 3])
+                    .on('zoom', (event) => {
+                        transform = event.transform;
+                        render();
+                    });
+
+                d3.select(canvas).call(zoom);
+
+                // Mouse interaction handling
+                let draggedNode = null;
+                let mouseX, mouseY;
+
+                function getMousePos(event) {
+                    const rect = canvas.getBoundingClientRect();
+                    return {
+                        x: (event.clientX - rect.left - transform.x) / transform.k,
+                        y: (event.clientY - rect.top - transform.y) / transform.k
+                    };
+                }
+
+                function findNode(x, y) {
+                    for (let i = nodes.length - 1; i >= 0; i--) {
+                        const node = nodes[i];
+                        const dx = x - node.x;
+                        const dy = y - node.y;
+                        if (dx * dx + dy * dy < node.radius * node.radius) {
+                            return node;
+                        }
+                    }
+                    return null;
+                }
+
+                function findEdge(x, y) {
+                    for (let i = edges.length - 1; i >= 0; i--) {
+                        const edge = edges[i];
+                        if (!edge.source || !edge.target) continue;
+
+                        // Check if click is near the edge line
+                        const dx = edge.target.x - edge.source.x;
+                        const dy = edge.target.y - edge.source.y;
+                        const length = Math.sqrt(dx * dx + dy * dy);
+                        if (length === 0) continue;
+
+                        const dot = ((x - edge.source.x) * dx + (y - edge.source.y) * dy) / (length * length);
+                        if (dot < 0 || dot > 1) continue;
+
+                        const projX = edge.source.x + dot * dx;
+                        const projY = edge.source.y + dot * dy;
+                        const distSq = (x - projX) * (x - projX) + (y - projY) * (y - projY);
+
+                        if (distSq < 25) { // 5px threshold
+                            return edge;
+                        }
+                    }
+                    return null;
+                }
+
+                canvas.addEventListener('mousedown', (event) => {
+                    const pos = getMousePos(event);
+                    mouseX = pos.x;
+                    mouseY = pos.y;
+                    draggedNode = findNode(pos.x, pos.y);
+
+                    if (draggedNode) {
+                        simulation.alphaTarget(0.3).restart();
+                        draggedNode.fx = draggedNode.x;
+                        draggedNode.fy = draggedNode.y;
+                        canvas.style.cursor = 'grabbing';
+                    }
+                });
+
+                canvas.addEventListener('mousemove', (event) => {
+                    const pos = getMousePos(event);
+
+                    if (draggedNode) {
+                        draggedNode.fx = pos.x;
+                        draggedNode.fy = pos.y;
+                    } else {
+                        // Update cursor based on what's under mouse
+                        const node = findNode(pos.x, pos.y);
+                        const edge = findEdge(pos.x, pos.y);
+                        canvas.style.cursor = (node || edge) ? 'pointer' : 'grab';
+                    }
+                });
+
+                canvas.addEventListener('mouseup', (event) => {
+                    if (draggedNode) {
+                        simulation.alphaTarget(0);
+                        draggedNode.fx = null;
+                        draggedNode.fy = null;
+                        draggedNode = null;
+                        canvas.style.cursor = 'grab';
+                    }
+                });
+
+                canvas.addEventListener('click', (event) => {
+                    const pos = getMousePos(event);
+                    const node = findNode(pos.x, pos.y);
+                    const edge = findEdge(pos.x, pos.y);
+
+                    if (node) {
+                        setActiveElement({ type: 'node', id: node.id });
+                    } else if (edge) {
+                        setActiveElement({ type: 'edge', id: edge.id });
+                    } else {
+                        clearActiveElement();
+                    }
+                });
+
+                // Animation loop
+                simulation.on('tick', () => {
+                    render();
+                });
+
+                // Handle window resize
+                window.addEventListener('resize', resizeCanvas);
+
+                render();
+            }
+
+            function resizeCanvas() {
+                if (!canvas || !ctx) return;
+
+                // Force canvas to take full container size
+                if (state.sidebarDisabled) {
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                }
+
+                const rect = canvas.getBoundingClientRect();
+                console.log('Canvas resize - rect:', rect.width, 'x', rect.height);
+
+                // Ensure minimum size for mobile
+                const width = Math.max(rect.width, 320);
+                const height = Math.max(rect.height, 200);
+
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                ctx.scale(dpr, dpr);
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+
+                // Update simulation center
+                if (simulation) {
+                    simulation.force('center', d3.forceCenter(width / 2, height / 2));
+                    simulation.alpha(0.3).restart();
+                }
+
+                render();
+            }
+
+
+            function render() {
+                if (!ctx || !canvas) return;
+
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width / (window.devicePixelRatio || 1),
+                             canvas.height / (window.devicePixelRatio || 1));
+
+                // Apply transform
+                ctx.save();
+                ctx.translate(transform.x, transform.y);
+                ctx.scale(transform.k, transform.k);
+
+                // Set text properties
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '12px Inter, system-ui, sans-serif';
+
+                // Draw edges first
+                edges.forEach(edge => {
+                    if (!edge.source || !edge.target) return;
+
+                    const isHighlighted = highlightedEdges.has(edge.id);
+                    const isDimmed = isFiltering && !isHighlighted;
+
+                    // Calculate edge endpoints accounting for node radius
+                    const dx = edge.target.x - edge.source.x;
+                    const dy = edge.target.y - edge.source.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const normX = dx / distance;
+                    const normY = dy / distance;
+
+                    const sourcePadding = edge.source.radius + 2;
+                    const targetPadding = edge.target.radius + 8;
+                    const sourceX = edge.source.x + normX * sourcePadding;
+                    const sourceY = edge.source.y + normY * sourcePadding;
+                    const targetX = edge.target.x - normX * targetPadding;
+                    const targetY = edge.target.y - normY * targetPadding;
+
+                    // Draw edge line
+                    ctx.strokeStyle = edge.color;
+                    ctx.globalAlpha = isDimmed ? 0.15 : (isHighlighted ? 1.0 : 0.55);
+                    ctx.lineWidth = 1.4;
+                    ctx.beginPath();
+                    ctx.moveTo(sourceX, sourceY);
+                    ctx.lineTo(targetX, targetY);
+                    ctx.stroke();
+
+                    // Draw arrowhead
+                    const arrowLength = 10;
+                    const arrowWidth = 5;
+                    const angle = Math.atan2(dy, dx);
+
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.beginPath();
+                    ctx.moveTo(targetX, targetY);
+                    ctx.lineTo(
+                        targetX - arrowLength * Math.cos(angle - arrowWidth * Math.PI / 180),
+                        targetY - arrowLength * Math.sin(angle - arrowWidth * Math.PI / 180)
+                    );
+                    ctx.lineTo(
+                        targetX - arrowLength * Math.cos(angle + arrowWidth * Math.PI / 180),
+                        targetY - arrowLength * Math.sin(angle + arrowWidth * Math.PI / 180)
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Draw edge label if zoom level is appropriate
+                    if (transform.k > 0.8) {
+                        const labelX = (sourceX + targetX) / 2;
+                        const labelY = (sourceY + targetY) / 2;
+
+                        ctx.fillStyle = isDimmed ? 'rgba(30, 41, 59, 0.15)' : 'rgba(30, 41, 59, 0.8)';
+                        ctx.font = '10px Inter, system-ui, sans-serif';
+                        ctx.fillText(edge.predicate, labelX, labelY);
+                    }
+                });
+
+                // Draw nodes
+                nodes.forEach(node => {
+                    const isHighlighted = highlightedNodes.has(node.id);
+                    const isDimmed = isFiltering && !isHighlighted;
+
+                    // Draw node circle
+                    ctx.fillStyle = node.color;
+                    ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                    ctx.fill();
+
+                    // Draw node border
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = isHighlighted ? 2.4 : 1.2;
+                    ctx.stroke();
+
+                    // Draw node label
+                    if (transform.k > 0.5) {
+                        ctx.fillStyle = isDimmed ? 'rgba(15, 23, 42, 0.15)' : '#0f172a';
+                        ctx.font = '12px Inter, system-ui, sans-serif';
+                        ctx.fillText(node.label, node.x, node.y + node.radius + 14);
+                    }
+                });
+
+                ctx.restore();
+                ctx.globalAlpha = 1.0;
+            }
+
+            function updateHighlights() {
+                // Clear previous highlights
+                highlightedNodes.clear();
+                highlightedEdges.clear();
+                isFiltering = false;
+
+                const addNode = id => {
+                    if (id) {
+                        highlightedNodes.add(id);
+                    }
+                };
+                const addEdge = id => {
+                    if (id) {
+                        highlightedEdges.add(id);
+                    }
+                };
+
+                if (state.activeElement) {
+                    isFiltering = true;
+                    if (state.activeElement.type === 'node') {
+                        const node = nodeById[state.activeElement.id];
+                        addNode(node.id);
+                        node.neighbors.forEach(addNode);
+                        (node.edgeIds.outgoing || []).forEach(addEdge);
+                        (node.edgeIds.incoming || []).forEach(addEdge);
+                    } else if (state.activeElement.type === 'edge') {
+                        const edge = edgeById[state.activeElement.id];
+                        addEdge(edge.id);
+                        addNode(edge.source);
+                        addNode(edge.target);
+                    }
+                }
+
+                if (state.focusCluster && nodesByCluster[state.focusCluster]) {
+                    isFiltering = true;
+                    nodesByCluster[state.focusCluster].forEach(addNode);
+                    vizData.edges.forEach(edge => {
+                        if (
+                            nodesByCluster[state.focusCluster].has(edge.source) &&
+                            nodesByCluster[state.focusCluster].has(edge.target)
+                        ) {
+                            addEdge(edge.id);
+                        }
+                    });
+                }
+
+                if (state.focusPredicate && edgesByPredicate[state.focusPredicate]) {
+                    isFiltering = true;
+                    edgesByPredicate[state.focusPredicate].forEach(edgeId => {
+                        addEdge(edgeId);
+                        const edge = edgeById[edgeId];
+                        addNode(edge.source);
+                        addNode(edge.target);
+                    });
+                }
+
+                if (state.searchTerm) {
+                    const term = state.searchTerm.toLowerCase();
+                    isFiltering = true;
+                    vizData.nodes.forEach(node => {
+                        if (node.label.toLowerCase().includes(term)) {
+                            addNode(node.id);
+                            node.neighbors.forEach(addNode);
+                        }
+                    });
+                    vizData.edges.forEach(edge => {
+                        if (edge.predicate.toLowerCase().includes(term)) {
+                            addEdge(edge.id);
+                            addNode(edge.source);
+                            addNode(edge.target);
+                        }
+                    });
+                }
+
+                // Trigger re-render with updated highlights
+                render();
+            }
+
+            function toggleSidebar() {
+                if (state.sidebarDisabled) return;
+
+                state.sidebarCollapsed = !state.sidebarCollapsed;
+                const layout = document.querySelector('.layout');
+                const sidebar = document.querySelector('.sidebar');
+                const toggleButton = document.getElementById('sidebarToggle');
+
+                layout.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+                sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
+                toggleButton.classList.toggle('collapsed', state.sidebarCollapsed);
+
+                // Trigger canvas resize when sidebar toggles
+                setTimeout(() => {
+                    resizeCanvas();
+                }, 300); // Wait for transition to complete
+            }
+
+            function disableSidebar() {
+                state.sidebarDisabled = true;
+
+                const layout = document.querySelector('.layout');
+                const sidebar = document.querySelector('.sidebar');
+                const toggleButton = document.getElementById('sidebarToggle');
+                const main = document.querySelector('.main');
+                const tabPanel = document.querySelector('.tab-panel');
+                const networkPanel = document.querySelector('.network-panel');
+
+                layout.classList.add('sidebar-disabled');
+                sidebar.style.display = 'none';
+                toggleButton.style.display = 'none';
+
+                // Force styles directly for iframe context
+                main.style.width = '100%';
+                main.style.height = '100vh';
+                tabPanel.style.padding = '0';
+                tabPanel.style.width = '100%';
+                tabPanel.style.height = '100vh';
+                networkPanel.style.width = '100%';
+                networkPanel.style.height = '100vh';
+                networkPanel.style.borderRadius = '0';
+                networkPanel.style.border = 'none';
+
+                console.log('Sidebar disabled, forcing full width styles');
+
+                // Multiple resize attempts with forced reflow
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('First resize attempt after 200ms');
+                    resizeCanvas();
+                }, 200);
+
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('Second resize attempt after 500ms');
+                    resizeCanvas();
+                }, 500);
+
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('Final resize attempt after 800ms');
+                    resizeCanvas();
+                }, 800);
+
+                // Notify parent about graph data
+                if (window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'graphDataReady',
+                        data: vizData
+                    }, '*');
+                }
+            }
+
+            function bindInteractions() {
+                document.querySelectorAll('.cluster-item').forEach(item => {
+                    item.addEventListener('click', () => toggleClusterFocus(item.getAttribute('data-cluster')));
+                });
+
+                document.querySelectorAll('.relation-item').forEach(item => {
+                    item.addEventListener('click', () => togglePredicateFocus(item.getAttribute('data-predicate')));
+                });
+
+                // document.getElementById('relationsTable').addEventListener('click', event => {
+                //     const row = event.target.closest('tr');
+                //     if (!row) {
+                //         return;
+                //     }
+                //     const edgeId = row.getAttribute('data-edge');
+                //     if (edgeId) {
+                //         setActiveElement({ type: 'edge', id: edgeId });
+                //     }
+                // });
+
+                const searchInput = document.getElementById('searchInput');
+                searchInput.addEventListener('input', () => {
+                    state.searchTerm = searchInput.value.trim();
+                    updateHighlights();
+
+                    // Notify parent about search change
+                    if (window.parent !== window && state.sidebarDisabled) {
+                        window.parent.postMessage({
+                            type: 'searchChanged',
+                            searchTerm: state.searchTerm
+                        }, '*');
+                    }
+                });
+                searchInput.addEventListener('keydown', event => {
+                    if (event.key === 'Escape') {
+                        searchInput.value = '';
+                        state.searchTerm = '';
+                        updateHighlights();
+                    }
+                });
+
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', event => {
+                        const target = event.currentTarget;
+                        document.querySelectorAll('.tab').forEach(button => button.classList.remove('active'));
+                        target.classList.add('active');
+                        const tabId = target.getAttribute('data-tab');
+                        document.querySelectorAll('.tab-panel').forEach(panel => {
+                            panel.classList.toggle('active', panel.id === tabId);
+                        });
+                    });
+                });
+
+                document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+
+                // Listen for messages from parent
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'disableInternalSidebar') {
+                        disableSidebar();
+                    } else if (event.data.type === 'search') {
+                        state.searchTerm = event.data.term || '';
+                        updateHighlights();
+                    } else if (event.data.type === 'focusCluster') {
+                        toggleClusterFocus(event.data.clusterId);
+                    } else if (event.data.type === 'focusPredicate') {
+                        togglePredicateFocus(event.data.predicate);
+                    }
+                });
+
+            }
+
+            renderStats();
+            renderTopLists();
+            renderClusters();
+            // renderRelationsTable();
+            // renderInsights();
+
+            // Delay network creation to ensure proper layout
+            setTimeout(() => {
+                createNetwork();
+                bindInteractions();
+            }, 100);
+        })();
+    </script>
+</body>
+
+</html>

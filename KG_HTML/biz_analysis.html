@@ -1,0 +1,3242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knowledge Graph Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            height: 100vh;
+            transition: grid-template-columns 0.3s ease;
+        }
+
+        .layout.sidebar-collapsed {
+            grid-template-columns: 0px 1fr;
+        }
+
+        .layout.sidebar-disabled {
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+
+        .layout.sidebar-disabled .main {
+            width: 100vw !important;
+        }
+
+        .layout.sidebar-disabled .tab-panel {
+            padding: 0 !important;
+            width: 100vw !important;
+        }
+
+        .layout.sidebar-disabled .network-panel {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0;
+            border: none;
+            max-width: none !important;
+        }
+
+        .layout.sidebar-disabled #networkCanvas {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+        }
+
+        /* Force canvas to take full iframe space */
+        canvas#networkCanvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .sidebar {
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            padding: 24px 24px 16px;
+            overflow-y: auto;
+            transition: width 0.3s ease, opacity 0.3s ease;
+            display: block; /* Visible in standalone mode */
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            padding: 24px 0 16px;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        .sidebar h1 {
+            margin: 0 0 8px;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar p {
+            margin: 0 0 20px;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section h2 {
+            font-size: 1rem;
+            margin: 0 0 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1e293b;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5f5;
+            border-radius: 10px;
+            font-size: 0.95rem;
+        }
+
+        .search-hint {
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .list-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .list-item strong {
+            font-weight: 600;
+        }
+
+        .cluster-item,
+        .relation-item {
+            border-left: 4px solid transparent;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .cluster-item:hover,
+        .relation-item:hover {
+            background: #e2e8f0;
+        }
+
+        .cluster-item.active,
+        .relation-item.active {
+            transform: translateX(4px);
+            background: #e2e8f0;
+        }
+
+        .cluster-item .meta,
+        .relation-item .meta {
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        .main {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            padding: 16px 20px 0;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .tab {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            padding: 10px 16px;
+            border-radius: 999px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .tab.active {
+            background: #1d4ed8;
+            color: #ffffff;
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: none; /* Hidden when sidebar is disabled */
+        }
+
+        .sidebar-toggle:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .sidebar-toggle::before {
+            content: '☰';
+            margin-right: 6px;
+        }
+
+        .sidebar-toggle.collapsed::before {
+            content: '☰';
+        }
+
+        .tab-panel {
+            flex: 1;
+            display: none;
+            padding: 16px 20px;
+            overflow: hidden;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .network-panel {
+            height: calc(100vh - 74px);
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        #networkCanvas {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+        }
+
+        #networkCanvas {
+            cursor: grab;
+        }
+
+        #networkCanvas:active {
+            cursor: grabbing;
+        }
+
+        .selection-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+
+        .selection-card h3 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+        }
+
+        .selection-card ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .selection-card li {
+            margin-bottom: 4px;
+            color: #475569;
+        }
+
+        .table-container {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            height: calc(100vh - 90px);
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: #f8fafc;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            font-size: 0.75rem;
+            color: #0f172a;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: #475569;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.25);
+        }
+
+
+        /* Mobile/narrow iframe handling - when sidebar is disabled, use full space */
+        @media (max-width: 800px) {
+            .layout:not(.sidebar-disabled) {
+                grid-template-columns: 1fr;
+            }
+
+            .layout:not(.sidebar-disabled) .sidebar {
+                height: 280px;
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+            }
+
+            .layout:not(.sidebar-disabled) .main {
+                height: calc(100vh - 280px);
+            }
+
+            /* When sidebar is disabled (iframe mode), ensure full viewport usage */
+            .layout.sidebar-disabled .main {
+                width: 100% !important;
+                height: 100vh !important;
+            }
+
+            .layout.sidebar-disabled .tab-panel {
+                padding: 0 !important;
+                width: 100% !important;
+                height: 100vh !important;
+            }
+
+            .layout.sidebar-disabled .network-panel {
+                width: 100% !important;
+                height: 100vh !important;
+                border-radius: 0 !important;
+                border: none !important;
+                max-width: none !important;
+            }
+
+            .layout.sidebar-disabled #networkCanvas {
+                width: 100% !important;
+                height: 100vh !important;
+                max-width: none !important;
+            }
+
+            /* Ensure iframe canvas takes full space on mobile */
+            canvas#networkCanvas {
+                width: 100% !important;
+                height: 100% !important;
+                min-width: 100% !important;
+                min-height: 100% !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <h1>Knowledge Graph Explorer</h1>
+            <p>Search, highlight, and inspect entities and relations to understand how the graph fits together.</p>
+            <div class="stats-grid" id="statsGrid"></div>
+            <div class="section">
+                <h2>Search</h2>
+                <input id="searchInput" class="search-input" type="text" placeholder="Search for entities or
+                    relations" />
+                <div class="search-hint">Matches are highlighted. Press Escape to clear.</div>
+            </div>
+            <div class="section" id="selectionSection">
+                <h2>Selection</h2>
+                <div id="selectionDetails" class="selection-card">Click a node or relation in the network to inspect
+                    details.</div>
+            </div>
+            <div class="section">
+                <h2>Entity Clusters</h2>
+                <div id="clusterList" class="list"></div>
+            </div>
+            <div class="section">
+                <h2>Top Entities</h2>
+                <div id="topEntities" class="list"></div>
+            </div>
+            <div class="section">
+                <h2>Top Relations</h2>
+                <div id="topRelations" class="list"></div>
+            </div>
+        </aside>
+        <main class="main">
+            <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar"></button>
+            <div class="tab-bar" style="padding-bottom: 10px; display: none;">
+                <button class="tab active" data-tab="network">Network</button>
+                <!-- <button class="tab" data-tab="relations">Relations</button>
+                <button class="tab" data-tab="insights">Insights</button> -->
+            </div>
+            <section id="network" class="tab-panel active">
+                <div class="network-panel">
+                    <canvas id="networkCanvas"></canvas>
+                </div>
+            </section>
+            <!-- <section id="relations" class="tab-panel">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Relation</th>
+                                <th>Object</th>
+                            </tr>
+                        </thead>
+                        <tbody id="relationsTable"></tbody>
+                    </table>
+                </div>
+            </section>
+            <section id="insights" class="tab-panel">
+                <div class="table-container" style="padding: 20px;">
+                    <div id="insightsContent"></div>
+                </div>
+            </section> -->
+        </main>
+    </div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script id="viz-data" type="application/json">
+{
+  "nodes": [
+    {
+      "id": "alert tools",
+      "label": "alert tools",
+      "cluster": "alert tools",
+      "color": "#ec6339",
+      "degree": 3,
+      "indegree": 3,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 24,
+      "neighbors": [
+        "OLAP",
+        "querying",
+        "reporting"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e13",
+          "e14",
+          "e15"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "alerts",
+      "label": "alerts",
+      "cluster": "alerts",
+      "color": "#e49458",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "business intelligence"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e6"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "analytical modeling",
+      "label": "analytical modeling",
+      "cluster": "analytical modeling",
+      "color": "#e5dc40",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "Business analytics",
+        "explanatory and predictive modeling"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e30"
+        ],
+        "outgoing": [
+          "e12"
+        ]
+      }
+    },
+    {
+      "id": "Analytics",
+      "label": "Analytics",
+      "cluster": "Analytics",
+      "color": "#a72ebc",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "fully automated decisions",
+        "human decisions"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e1",
+          "e34"
+        ]
+      }
+    },
+    {
+      "id": "Business analytics",
+      "label": "Business analytics",
+      "cluster": "Business analytics",
+      "color": "#6a74d6",
+      "degree": 20,
+      "indegree": 2,
+      "outdegree": 18,
+      "isRepresentative": true,
+      "radius": 34,
+      "neighbors": [
+        "analytical modeling",
+        "Business analytics",
+        "business intelligence",
+        "business planning",
+        "data",
+        "fact-based management",
+        "insight",
+        "iterative exploration",
+        "management science",
+        "numerical analysis",
+        "past business performance",
+        "practices",
+        "predict",
+        "prediction",
+        "prescription",
+        "skills",
+        "statistical methods",
+        "technologies"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e16",
+          "e21"
+        ],
+        "outgoing": [
+          "e0",
+          "e2",
+          "e3",
+          "e5",
+          "e10",
+          "e11",
+          "e16",
+          "e18",
+          "e19",
+          "e20",
+          "e22",
+          "e25",
+          "e27",
+          "e28",
+          "e29",
+          "e30",
+          "e31",
+          "e32"
+        ]
+      }
+    },
+    {
+      "id": "business intelligence",
+      "label": "business intelligence",
+      "cluster": "business intelligence",
+      "color": "#ea6d60",
+      "degree": 9,
+      "indegree": 0,
+      "outdegree": 9,
+      "isRepresentative": true,
+      "radius": 34,
+      "neighbors": [
+        "alerts",
+        "Business analytics",
+        "business planning",
+        "description",
+        "metrics",
+        "OLAP",
+        "past business performance",
+        "querying",
+        "reporting"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e4",
+          "e6",
+          "e7",
+          "e8",
+          "e9",
+          "e21",
+          "e24",
+          "e26",
+          "e33"
+        ]
+      }
+    },
+    {
+      "id": "business planning",
+      "label": "business planning",
+      "cluster": "business planning",
+      "color": "#248bd3",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "Business analytics",
+        "business intelligence"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e22",
+          "e24"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "data",
+      "label": "data",
+      "cluster": "data",
+      "color": "#70de4a",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e18"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "decision making",
+      "label": "decision making",
+      "cluster": "decision making",
+      "color": "#dc5025",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "fact-based management"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e23"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "description",
+      "label": "description",
+      "cluster": "description",
+      "color": "#5baaed",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "business intelligence"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e4"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "explanatory and predictive modeling",
+      "label": "explanatory and predictive modeling",
+      "cluster": "explanatory and predictive modeling",
+      "color": "#70f2aa",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "analytical modeling"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e12"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "fact-based management",
+      "label": "fact-based management",
+      "cluster": "fact-based management",
+      "color": "#bb54d8",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "Business analytics",
+        "decision making"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e31"
+        ],
+        "outgoing": [
+          "e23"
+        ]
+      }
+    },
+    {
+      "id": "fully automated decisions",
+      "label": "fully automated decisions",
+      "cluster": "fully automated decisions",
+      "color": "#da6e83",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e1"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "human decisions",
+      "label": "human decisions",
+      "cluster": "human decisions",
+      "color": "#e67981",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e34"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "insight",
+      "label": "insight",
+      "cluster": "insight",
+      "color": "#bce16d",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e5",
+          "e10"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "iterative exploration",
+      "label": "iterative exploration",
+      "cluster": "iterative exploration",
+      "color": "#c03347",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e11"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "management science",
+      "label": "management science",
+      "cluster": "management science",
+      "color": "#bce517",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e20"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "metrics",
+      "label": "metrics",
+      "cluster": "metrics",
+      "color": "#d52165",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "business intelligence"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e33"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "numerical analysis",
+      "label": "numerical analysis",
+      "cluster": "numerical analysis",
+      "color": "#8519d8",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e32"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "OLAP",
+      "label": "OLAP",
+      "cluster": "OLAP",
+      "color": "#dbd47b",
+      "degree": 4,
+      "indegree": 2,
+      "outdegree": 2,
+      "isRepresentative": true,
+      "radius": 26,
+      "neighbors": [
+        "alert tools",
+        "business intelligence",
+        "OLAP"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e7",
+          "e17"
+        ],
+        "outgoing": [
+          "e13",
+          "e17"
+        ]
+      }
+    },
+    {
+      "id": "past business performance",
+      "label": "past business performance",
+      "cluster": "past business performance",
+      "color": "#a5c037",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "Business analytics",
+        "business intelligence"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e25",
+          "e26"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "practices",
+      "label": "practices",
+      "cluster": "practices",
+      "color": "#79e3e2",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e27"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "predict",
+      "label": "predict",
+      "cluster": null,
+      "color": "#64748b",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e0"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "prediction",
+      "label": "prediction",
+      "cluster": "prediction",
+      "color": "#e53c37",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e2"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "prescription",
+      "label": "prescription",
+      "cluster": "prescription",
+      "color": "#da52e3",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e3"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "querying",
+      "label": "querying",
+      "cluster": "querying",
+      "color": "#8723dc",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "alert tools",
+        "business intelligence"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e8"
+        ],
+        "outgoing": [
+          "e14"
+        ]
+      }
+    },
+    {
+      "id": "reporting",
+      "label": "reporting",
+      "cluster": "reporting",
+      "color": "#9147dd",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": true,
+      "radius": 22,
+      "neighbors": [
+        "alert tools",
+        "business intelligence"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e9"
+        ],
+        "outgoing": [
+          "e15"
+        ]
+      }
+    },
+    {
+      "id": "skills",
+      "label": "skills",
+      "cluster": "skills",
+      "color": "#b427c9",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e28"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "statistical methods",
+      "label": "statistical methods",
+      "cluster": "statistical methods",
+      "color": "#45d850",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e19"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "technologies",
+      "label": "technologies",
+      "cluster": "technologies",
+      "color": "#d2418c",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": true,
+      "radius": 20,
+      "neighbors": [
+        "Business analytics"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e29"
+        ],
+        "outgoing": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "Business analytics",
+      "target": "predict",
+      "predicate": "can answer what will happen next",
+      "cluster": "can answer what will happen next",
+      "color": "#8526d6",
+      "tooltip": "Business analytics —can answer what will happen next→ predict"
+    },
+    {
+      "id": "e1",
+      "source": "Analytics",
+      "target": "fully automated decisions",
+      "predicate": "can drive",
+      "cluster": "can drive",
+      "color": "#ea16a7",
+      "tooltip": "Analytics —can drive→ fully automated decisions"
+    },
+    {
+      "id": "e2",
+      "source": "Business analytics",
+      "target": "prediction",
+      "predicate": "focuses on",
+      "cluster": "focuses on",
+      "color": "#c58e39",
+      "tooltip": "Business analytics —focuses on→ prediction"
+    },
+    {
+      "id": "e3",
+      "source": "Business analytics",
+      "target": "prescription",
+      "predicate": "focuses on",
+      "cluster": "focuses on",
+      "color": "#c58e39",
+      "tooltip": "Business analytics —focuses on→ prescription"
+    },
+    {
+      "id": "e4",
+      "source": "business intelligence",
+      "target": "description",
+      "predicate": "focuses on",
+      "cluster": "focuses on",
+      "color": "#c58e39",
+      "tooltip": "business intelligence —focuses on→ description"
+    },
+    {
+      "id": "e5",
+      "source": "Business analytics",
+      "target": "insight",
+      "predicate": "focuses on developing",
+      "cluster": "focuses on developing",
+      "color": "#765de2",
+      "tooltip": "Business analytics —focuses on developing→ insight"
+    },
+    {
+      "id": "e6",
+      "source": "business intelligence",
+      "target": "alerts",
+      "predicate": "is a component of",
+      "cluster": "is a component of",
+      "color": "#afe16e",
+      "tooltip": "business intelligence —is a component of→ alerts"
+    },
+    {
+      "id": "e7",
+      "source": "business intelligence",
+      "target": "OLAP",
+      "predicate": "is a component of",
+      "cluster": "is a component of",
+      "color": "#afe16e",
+      "tooltip": "business intelligence —is a component of→ OLAP"
+    },
+    {
+      "id": "e8",
+      "source": "business intelligence",
+      "target": "querying",
+      "predicate": "is a component of",
+      "cluster": "is a component of",
+      "color": "#afe16e",
+      "tooltip": "business intelligence —is a component of→ querying"
+    },
+    {
+      "id": "e9",
+      "source": "business intelligence",
+      "target": "reporting",
+      "predicate": "is a component of",
+      "cluster": "is a component of",
+      "color": "#afe16e",
+      "tooltip": "business intelligence —is a component of→ reporting"
+    },
+    {
+      "id": "e10",
+      "source": "Business analytics",
+      "target": "insight",
+      "predicate": "is a goal of",
+      "cluster": "is a goal of",
+      "color": "#de8741",
+      "tooltip": "Business analytics —is a goal of→ insight"
+    },
+    {
+      "id": "e11",
+      "source": "Business analytics",
+      "target": "iterative exploration",
+      "predicate": "is a practice of",
+      "cluster": "is a practice of",
+      "color": "#37e092",
+      "tooltip": "Business analytics —is a practice of→ iterative exploration"
+    },
+    {
+      "id": "e12",
+      "source": "analytical modeling",
+      "target": "explanatory and predictive modeling",
+      "predicate": "is a type of",
+      "cluster": "is a type of",
+      "color": "#c3e623",
+      "tooltip": "analytical modeling —is a type of→ explanatory and predictive modeling"
+    },
+    {
+      "id": "e13",
+      "source": "OLAP",
+      "target": "alert tools",
+      "predicate": "is a type of",
+      "cluster": "is a type of",
+      "color": "#c3e623",
+      "tooltip": "OLAP —is a type of→ alert tools"
+    },
+    {
+      "id": "e14",
+      "source": "querying",
+      "target": "alert tools",
+      "predicate": "is a type of",
+      "cluster": "is a type of",
+      "color": "#c3e623",
+      "tooltip": "querying —is a type of→ alert tools"
+    },
+    {
+      "id": "e15",
+      "source": "reporting",
+      "target": "alert tools",
+      "predicate": "is a type of",
+      "cluster": "is a type of",
+      "color": "#c3e623",
+      "tooltip": "reporting —is a type of→ alert tools"
+    },
+    {
+      "id": "e16",
+      "source": "Business analytics",
+      "target": "Business analytics",
+      "predicate": "is also known as",
+      "cluster": "is also known as",
+      "color": "#58d947",
+      "tooltip": "Business analytics —is also known as→ Business analytics"
+    },
+    {
+      "id": "e17",
+      "source": "OLAP",
+      "target": "OLAP",
+      "predicate": "is an abbreviation for",
+      "cluster": "is an abbreviation for",
+      "color": "#e17876",
+      "tooltip": "OLAP —is an abbreviation for→ OLAP"
+    },
+    {
+      "id": "e18",
+      "source": "Business analytics",
+      "target": "data",
+      "predicate": "is based on",
+      "cluster": "is based on",
+      "color": "#6f33b2",
+      "tooltip": "Business analytics —is based on→ data"
+    },
+    {
+      "id": "e19",
+      "source": "Business analytics",
+      "target": "statistical methods",
+      "predicate": "is based on",
+      "cluster": "is based on",
+      "color": "#6f33b2",
+      "tooltip": "Business analytics —is based on→ statistical methods"
+    },
+    {
+      "id": "e20",
+      "source": "Business analytics",
+      "target": "management science",
+      "predicate": "is closely related to",
+      "cluster": "is closely related to",
+      "color": "#2e86e8",
+      "tooltip": "Business analytics —is closely related to→ management science"
+    },
+    {
+      "id": "e21",
+      "source": "business intelligence",
+      "target": "Business analytics",
+      "predicate": "is contrasted with",
+      "cluster": "is contrasted with",
+      "color": "#4d2abe",
+      "tooltip": "business intelligence —is contrasted with→ Business analytics"
+    },
+    {
+      "id": "e22",
+      "source": "Business analytics",
+      "target": "business planning",
+      "predicate": "is driven by",
+      "cluster": "is driven by",
+      "color": "#6def7c",
+      "tooltip": "Business analytics —is driven by→ business planning"
+    },
+    {
+      "id": "e23",
+      "source": "fact-based management",
+      "target": "decision making",
+      "predicate": "is driven by",
+      "cluster": "is driven by",
+      "color": "#6def7c",
+      "tooltip": "fact-based management —is driven by→ decision making"
+    },
+    {
+      "id": "e24",
+      "source": "business intelligence",
+      "target": "business planning",
+      "predicate": "is guided by",
+      "cluster": "is guided by",
+      "color": "#a2db7f",
+      "tooltip": "business intelligence —is guided by→ business planning"
+    },
+    {
+      "id": "e25",
+      "source": "Business analytics",
+      "target": "past business performance",
+      "predicate": "is investigated by",
+      "cluster": "is investigated by",
+      "color": "#80d73a",
+      "tooltip": "Business analytics —is investigated by→ past business performance"
+    },
+    {
+      "id": "e26",
+      "source": "business intelligence",
+      "target": "past business performance",
+      "predicate": "is measured by",
+      "cluster": "is measured by",
+      "color": "#d5e172",
+      "tooltip": "business intelligence —is measured by→ past business performance"
+    },
+    {
+      "id": "e27",
+      "source": "Business analytics",
+      "target": "practices",
+      "predicate": "is referred to by",
+      "cluster": "is referred to by",
+      "color": "#e24ccf",
+      "tooltip": "Business analytics —is referred to by→ practices"
+    },
+    {
+      "id": "e28",
+      "source": "Business analytics",
+      "target": "skills",
+      "predicate": "is referred to by",
+      "cluster": "is referred to by",
+      "color": "#e24ccf",
+      "tooltip": "Business analytics —is referred to by→ skills"
+    },
+    {
+      "id": "e29",
+      "source": "Business analytics",
+      "target": "technologies",
+      "predicate": "is referred to by",
+      "cluster": "is referred to by",
+      "color": "#e24ccf",
+      "tooltip": "Business analytics —is referred to by→ technologies"
+    },
+    {
+      "id": "e30",
+      "source": "Business analytics",
+      "target": "analytical modeling",
+      "predicate": "makes extensive use of",
+      "cluster": "makes extensive use of",
+      "color": "#46a7d4",
+      "tooltip": "Business analytics —makes extensive use of→ analytical modeling"
+    },
+    {
+      "id": "e31",
+      "source": "Business analytics",
+      "target": "fact-based management",
+      "predicate": "makes extensive use of",
+      "cluster": "makes extensive use of",
+      "color": "#46a7d4",
+      "tooltip": "Business analytics —makes extensive use of→ fact-based management"
+    },
+    {
+      "id": "e32",
+      "source": "Business analytics",
+      "target": "numerical analysis",
+      "predicate": "makes extensive use of",
+      "cluster": "makes extensive use of",
+      "color": "#46a7d4",
+      "tooltip": "Business analytics —makes extensive use of→ numerical analysis"
+    },
+    {
+      "id": "e33",
+      "source": "business intelligence",
+      "target": "metrics",
+      "predicate": "uses",
+      "cluster": "uses",
+      "color": "#8a66d3",
+      "tooltip": "business intelligence —uses→ metrics"
+    },
+    {
+      "id": "e34",
+      "source": "Analytics",
+      "target": "human decisions",
+      "predicate": "uses as input",
+      "cluster": "uses as input",
+      "color": "#eebf41",
+      "tooltip": "Analytics —uses as input→ human decisions"
+    }
+  ],
+  "clusters": [
+    {
+      "id": "Business analytics",
+      "label": "Business analytics",
+      "members": [
+        "BA",
+        "Business analytics"
+      ],
+      "size": 2,
+      "color": "#6a74d6"
+    },
+    {
+      "id": "OLAP",
+      "label": "OLAP",
+      "members": [
+        "OLAP",
+        "online analytical processing"
+      ],
+      "size": 2,
+      "color": "#dbd47b"
+    },
+    {
+      "id": "decision making",
+      "label": "decision making",
+      "members": [
+        "decision making"
+      ],
+      "size": 1,
+      "color": "#dc5025"
+    },
+    {
+      "id": "Analytics",
+      "label": "Analytics",
+      "members": [
+        "Analytics"
+      ],
+      "size": 1,
+      "color": "#a72ebc"
+    },
+    {
+      "id": "practices",
+      "label": "practices",
+      "members": [
+        "practices"
+      ],
+      "size": 1,
+      "color": "#79e3e2"
+    },
+    {
+      "id": "fact-based management",
+      "label": "fact-based management",
+      "members": [
+        "fact-based management"
+      ],
+      "size": 1,
+      "color": "#bb54d8"
+    },
+    {
+      "id": "querying",
+      "label": "querying",
+      "members": [
+        "querying"
+      ],
+      "size": 1,
+      "color": "#8723dc"
+    },
+    {
+      "id": "data",
+      "label": "data",
+      "members": [
+        "data"
+      ],
+      "size": 1,
+      "color": "#70de4a"
+    },
+    {
+      "id": "numerical analysis",
+      "label": "numerical analysis",
+      "members": [
+        "numerical analysis"
+      ],
+      "size": 1,
+      "color": "#8519d8"
+    },
+    {
+      "id": "skills",
+      "label": "skills",
+      "members": [
+        "skills"
+      ],
+      "size": 1,
+      "color": "#b427c9"
+    },
+    {
+      "id": "fully automated decisions",
+      "label": "fully automated decisions",
+      "members": [
+        "fully automated decisions"
+      ],
+      "size": 1,
+      "color": "#da6e83"
+    },
+    {
+      "id": "insight",
+      "label": "insight",
+      "members": [
+        "insight"
+      ],
+      "size": 1,
+      "color": "#bce16d"
+    },
+    {
+      "id": "business planning",
+      "label": "business planning",
+      "members": [
+        "business planning"
+      ],
+      "size": 1,
+      "color": "#248bd3"
+    },
+    {
+      "id": "iterative exploration",
+      "label": "iterative exploration",
+      "members": [
+        "iterative exploration"
+      ],
+      "size": 1,
+      "color": "#c03347"
+    },
+    {
+      "id": "statistical methods",
+      "label": "statistical methods",
+      "members": [
+        "statistical methods"
+      ],
+      "size": 1,
+      "color": "#45d850"
+    },
+    {
+      "id": "reporting",
+      "label": "reporting",
+      "members": [
+        "reporting"
+      ],
+      "size": 1,
+      "color": "#9147dd"
+    },
+    {
+      "id": "explanatory and predictive modeling",
+      "label": "explanatory and predictive modeling",
+      "members": [
+        "explanatory and predictive modeling"
+      ],
+      "size": 1,
+      "color": "#70f2aa"
+    },
+    {
+      "id": "prescription",
+      "label": "prescription",
+      "members": [
+        "prescription"
+      ],
+      "size": 1,
+      "color": "#da52e3"
+    },
+    {
+      "id": "business intelligence",
+      "label": "business intelligence",
+      "members": [
+        "business intelligence"
+      ],
+      "size": 1,
+      "color": "#ea6d60"
+    },
+    {
+      "id": "human decisions",
+      "label": "human decisions",
+      "members": [
+        "human decisions"
+      ],
+      "size": 1,
+      "color": "#e67981"
+    },
+    {
+      "id": "technologies",
+      "label": "technologies",
+      "members": [
+        "technologies"
+      ],
+      "size": 1,
+      "color": "#d2418c"
+    },
+    {
+      "id": "description",
+      "label": "description",
+      "members": [
+        "description"
+      ],
+      "size": 1,
+      "color": "#5baaed"
+    },
+    {
+      "id": "prediction",
+      "label": "prediction",
+      "members": [
+        "prediction"
+      ],
+      "size": 1,
+      "color": "#e53c37"
+    },
+    {
+      "id": "alert tools",
+      "label": "alert tools",
+      "members": [
+        "alert tools"
+      ],
+      "size": 1,
+      "color": "#ec6339"
+    },
+    {
+      "id": "alerts",
+      "label": "alerts",
+      "members": [
+        "alerts"
+      ],
+      "size": 1,
+      "color": "#e49458"
+    },
+    {
+      "id": "metrics",
+      "label": "metrics",
+      "members": [
+        "metrics"
+      ],
+      "size": 1,
+      "color": "#d52165"
+    },
+    {
+      "id": "analytical modeling",
+      "label": "analytical modeling",
+      "members": [
+        "analytical modeling"
+      ],
+      "size": 1,
+      "color": "#e5dc40"
+    },
+    {
+      "id": "past business performance",
+      "label": "past business performance",
+      "members": [
+        "past business performance"
+      ],
+      "size": 1,
+      "color": "#a5c037"
+    },
+    {
+      "id": "management science",
+      "label": "management science",
+      "members": [
+        "management science"
+      ],
+      "size": 1,
+      "color": "#bce517"
+    }
+  ],
+  "edgeClusters": [
+    {
+      "id": "is guided by",
+      "label": "is guided by",
+      "members": [
+        "is guided by"
+      ],
+      "size": 1,
+      "color": "#a2db7f"
+    },
+    {
+      "id": "is a practice of",
+      "label": "is a practice of",
+      "members": [
+        "is a practice of"
+      ],
+      "size": 1,
+      "color": "#37e092"
+    },
+    {
+      "id": "is also known as",
+      "label": "is also known as",
+      "members": [
+        "is also known as"
+      ],
+      "size": 1,
+      "color": "#58d947"
+    },
+    {
+      "id": "uses",
+      "label": "uses",
+      "members": [
+        "uses"
+      ],
+      "size": 1,
+      "color": "#8a66d3"
+    },
+    {
+      "id": "can answer what will happen next",
+      "label": "can answer what will happen next",
+      "members": [
+        "can answer what will happen next"
+      ],
+      "size": 1,
+      "color": "#8526d6"
+    },
+    {
+      "id": "can drive",
+      "label": "can drive",
+      "members": [
+        "can drive"
+      ],
+      "size": 1,
+      "color": "#ea16a7"
+    },
+    {
+      "id": "is measured by",
+      "label": "is measured by",
+      "members": [
+        "is measured by"
+      ],
+      "size": 1,
+      "color": "#d5e172"
+    },
+    {
+      "id": "makes extensive use of",
+      "label": "makes extensive use of",
+      "members": [
+        "makes extensive use of"
+      ],
+      "size": 1,
+      "color": "#46a7d4"
+    },
+    {
+      "id": "is a component of",
+      "label": "is a component of",
+      "members": [
+        "is a component of"
+      ],
+      "size": 1,
+      "color": "#afe16e"
+    },
+    {
+      "id": "is based on",
+      "label": "is based on",
+      "members": [
+        "is based on"
+      ],
+      "size": 1,
+      "color": "#6f33b2"
+    },
+    {
+      "id": "focuses on",
+      "label": "focuses on",
+      "members": [
+        "focuses on"
+      ],
+      "size": 1,
+      "color": "#c58e39"
+    },
+    {
+      "id": "uses as input",
+      "label": "uses as input",
+      "members": [
+        "uses as input"
+      ],
+      "size": 1,
+      "color": "#eebf41"
+    },
+    {
+      "id": "is investigated by",
+      "label": "is investigated by",
+      "members": [
+        "is investigated by"
+      ],
+      "size": 1,
+      "color": "#80d73a"
+    },
+    {
+      "id": "is a type of",
+      "label": "is a type of",
+      "members": [
+        "is a type of"
+      ],
+      "size": 1,
+      "color": "#c3e623"
+    },
+    {
+      "id": "is driven by",
+      "label": "is driven by",
+      "members": [
+        "is driven by"
+      ],
+      "size": 1,
+      "color": "#6def7c"
+    },
+    {
+      "id": "is a goal of",
+      "label": "is a goal of",
+      "members": [
+        "is a goal of"
+      ],
+      "size": 1,
+      "color": "#de8741"
+    },
+    {
+      "id": "focuses on developing",
+      "label": "focuses on developing",
+      "members": [
+        "focuses on developing"
+      ],
+      "size": 1,
+      "color": "#765de2"
+    },
+    {
+      "id": "is contrasted with",
+      "label": "is contrasted with",
+      "members": [
+        "is contrasted with"
+      ],
+      "size": 1,
+      "color": "#4d2abe"
+    },
+    {
+      "id": "is closely related to",
+      "label": "is closely related to",
+      "members": [
+        "is closely related to"
+      ],
+      "size": 1,
+      "color": "#2e86e8"
+    },
+    {
+      "id": "is an abbreviation for",
+      "label": "is an abbreviation for",
+      "members": [
+        "is an abbreviation for"
+      ],
+      "size": 1,
+      "color": "#e17876"
+    },
+    {
+      "id": "is referred to by",
+      "label": "is referred to by",
+      "members": [
+        "is referred to by"
+      ],
+      "size": 1,
+      "color": "#e24ccf"
+    }
+  ],
+  "topEntities": [
+    {
+      "label": "Business analytics",
+      "degree": 20,
+      "indegree": 2,
+      "outdegree": 18,
+      "cluster": "Business analytics"
+    },
+    {
+      "label": "business intelligence",
+      "degree": 9,
+      "indegree": 0,
+      "outdegree": 9,
+      "cluster": "business intelligence"
+    },
+    {
+      "label": "OLAP",
+      "degree": 4,
+      "indegree": 2,
+      "outdegree": 2,
+      "cluster": "OLAP"
+    },
+    {
+      "label": "alert tools",
+      "degree": 3,
+      "indegree": 3,
+      "outdegree": 0,
+      "cluster": "alert tools"
+    },
+    {
+      "label": "analytical modeling",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "cluster": "analytical modeling"
+    },
+    {
+      "label": "Analytics",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "cluster": "Analytics"
+    },
+    {
+      "label": "business planning",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "cluster": "business planning"
+    },
+    {
+      "label": "fact-based management",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "cluster": "fact-based management"
+    },
+    {
+      "label": "insight",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "cluster": "insight"
+    },
+    {
+      "label": "past business performance",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "cluster": "past business performance"
+    }
+  ],
+  "topRelations": [
+    {
+      "predicate": "is a component of",
+      "count": 4,
+      "cluster": "is a component of",
+      "color": "#afe16e"
+    },
+    {
+      "predicate": "is a type of",
+      "count": 4,
+      "cluster": "is a type of",
+      "color": "#c3e623"
+    },
+    {
+      "predicate": "focuses on",
+      "count": 3,
+      "cluster": "focuses on",
+      "color": "#c58e39"
+    },
+    {
+      "predicate": "is referred to by",
+      "count": 3,
+      "cluster": "is referred to by",
+      "color": "#e24ccf"
+    },
+    {
+      "predicate": "makes extensive use of",
+      "count": 3,
+      "cluster": "makes extensive use of",
+      "color": "#46a7d4"
+    },
+    {
+      "predicate": "is based on",
+      "count": 2,
+      "cluster": "is based on",
+      "color": "#6f33b2"
+    },
+    {
+      "predicate": "is driven by",
+      "count": 2,
+      "cluster": "is driven by",
+      "color": "#6def7c"
+    },
+    {
+      "predicate": "can answer what will happen next",
+      "count": 1,
+      "cluster": "can answer what will happen next",
+      "color": "#8526d6"
+    },
+    {
+      "predicate": "can drive",
+      "count": 1,
+      "cluster": "can drive",
+      "color": "#ea16a7"
+    },
+    {
+      "predicate": "focuses on developing",
+      "count": 1,
+      "cluster": "focuses on developing",
+      "color": "#765de2"
+    }
+  ],
+  "stats": {
+    "entities": 30,
+    "relations": 35,
+    "relationTypes": 21,
+    "entityClusters": 29,
+    "edgeClusters": 21,
+    "isolatedEntities": 0,
+    "components": 2,
+    "averageDegree": 2.33,
+    "density": 0.04
+  },
+  "isolatedEntities": [],
+  "components": [
+    {
+      "size": 27,
+      "members": [
+        "alert tools",
+        "alerts",
+        "analytical modeling",
+        "Business analytics",
+        "business intelligence",
+        "business planning",
+        "data",
+        "decision making",
+        "description",
+        "explanatory and predictive modeling",
+        "fact-based management",
+        "insight",
+        "iterative exploration",
+        "management science",
+        "metrics",
+        "numerical analysis",
+        "OLAP",
+        "past business performance",
+        "practices",
+        "predict",
+        "prediction",
+        "prescription",
+        "querying",
+        "reporting",
+        "skills",
+        "statistical methods",
+        "technologies"
+      ]
+    },
+    {
+      "size": 3,
+      "members": [
+        "Analytics",
+        "fully automated decisions",
+        "human decisions"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "Business analytics",
+      "predicate": "can answer what will happen next",
+      "target": "predict",
+      "edgeId": "e0",
+      "color": "#8526d6"
+    },
+    {
+      "source": "Analytics",
+      "predicate": "can drive",
+      "target": "fully automated decisions",
+      "edgeId": "e1",
+      "color": "#ea16a7"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "focuses on",
+      "target": "prediction",
+      "edgeId": "e2",
+      "color": "#c58e39"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "focuses on",
+      "target": "prescription",
+      "edgeId": "e3",
+      "color": "#c58e39"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "focuses on",
+      "target": "description",
+      "edgeId": "e4",
+      "color": "#c58e39"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "focuses on developing",
+      "target": "insight",
+      "edgeId": "e5",
+      "color": "#765de2"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "is a component of",
+      "target": "alerts",
+      "edgeId": "e6",
+      "color": "#afe16e"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "is a component of",
+      "target": "OLAP",
+      "edgeId": "e7",
+      "color": "#afe16e"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "is a component of",
+      "target": "querying",
+      "edgeId": "e8",
+      "color": "#afe16e"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "is a component of",
+      "target": "reporting",
+      "edgeId": "e9",
+      "color": "#afe16e"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is a goal of",
+      "target": "insight",
+      "edgeId": "e10",
+      "color": "#de8741"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is a practice of",
+      "target": "iterative exploration",
+      "edgeId": "e11",
+      "color": "#37e092"
+    },
+    {
+      "source": "analytical modeling",
+      "predicate": "is a type of",
+      "target": "explanatory and predictive modeling",
+      "edgeId": "e12",
+      "color": "#c3e623"
+    },
+    {
+      "source": "OLAP",
+      "predicate": "is a type of",
+      "target": "alert tools",
+      "edgeId": "e13",
+      "color": "#c3e623"
+    },
+    {
+      "source": "querying",
+      "predicate": "is a type of",
+      "target": "alert tools",
+      "edgeId": "e14",
+      "color": "#c3e623"
+    },
+    {
+      "source": "reporting",
+      "predicate": "is a type of",
+      "target": "alert tools",
+      "edgeId": "e15",
+      "color": "#c3e623"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is also known as",
+      "target": "Business analytics",
+      "edgeId": "e16",
+      "color": "#58d947"
+    },
+    {
+      "source": "OLAP",
+      "predicate": "is an abbreviation for",
+      "target": "OLAP",
+      "edgeId": "e17",
+      "color": "#e17876"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is based on",
+      "target": "data",
+      "edgeId": "e18",
+      "color": "#6f33b2"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is based on",
+      "target": "statistical methods",
+      "edgeId": "e19",
+      "color": "#6f33b2"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is closely related to",
+      "target": "management science",
+      "edgeId": "e20",
+      "color": "#2e86e8"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "is contrasted with",
+      "target": "Business analytics",
+      "edgeId": "e21",
+      "color": "#4d2abe"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is driven by",
+      "target": "business planning",
+      "edgeId": "e22",
+      "color": "#6def7c"
+    },
+    {
+      "source": "fact-based management",
+      "predicate": "is driven by",
+      "target": "decision making",
+      "edgeId": "e23",
+      "color": "#6def7c"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "is guided by",
+      "target": "business planning",
+      "edgeId": "e24",
+      "color": "#a2db7f"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is investigated by",
+      "target": "past business performance",
+      "edgeId": "e25",
+      "color": "#80d73a"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "is measured by",
+      "target": "past business performance",
+      "edgeId": "e26",
+      "color": "#d5e172"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is referred to by",
+      "target": "practices",
+      "edgeId": "e27",
+      "color": "#e24ccf"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is referred to by",
+      "target": "skills",
+      "edgeId": "e28",
+      "color": "#e24ccf"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "is referred to by",
+      "target": "technologies",
+      "edgeId": "e29",
+      "color": "#e24ccf"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "makes extensive use of",
+      "target": "analytical modeling",
+      "edgeId": "e30",
+      "color": "#46a7d4"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "makes extensive use of",
+      "target": "fact-based management",
+      "edgeId": "e31",
+      "color": "#46a7d4"
+    },
+    {
+      "source": "Business analytics",
+      "predicate": "makes extensive use of",
+      "target": "numerical analysis",
+      "edgeId": "e32",
+      "color": "#46a7d4"
+    },
+    {
+      "source": "business intelligence",
+      "predicate": "uses",
+      "target": "metrics",
+      "edgeId": "e33",
+      "color": "#8a66d3"
+    },
+    {
+      "source": "Analytics",
+      "predicate": "uses as input",
+      "target": "human decisions",
+      "edgeId": "e34",
+      "color": "#eebf41"
+    }
+  ]
+}
+    </script>
+    <script>
+        (function () {
+            console.log('[iframe] Script starting - mobile check:', window.innerWidth <= 768);
+            console.log('[iframe] User agent:', navigator.userAgent);
+
+            const dataElement = document.getElementById('viz-data');
+            if (!dataElement) {
+                console.error('[iframe] viz-data element not found!');
+                return;
+            }
+
+            let vizData;
+            try {
+                vizData = JSON.parse(dataElement.textContent);
+                console.log('[iframe] Data parsed successfully:', vizData.nodes?.length, 'nodes');
+            } catch (e) {
+                console.error('[iframe] Failed to parse data:', e);
+                return;
+            }
+
+            const state = {
+                activeElement: null,
+                focusCluster: null,
+                focusPredicate: null,
+                searchTerm: '',
+                sidebarCollapsed: false,
+                sidebarDisabled: false
+            };
+
+            const nodeById = Object.fromEntries(vizData.nodes.map(node => [node.id, node]));
+            const edgeById = Object.fromEntries(vizData.edges.map(edge => [edge.id, edge]));
+            const clusterById = Object.fromEntries(vizData.clusters.map(cluster => [cluster.id, cluster]));
+            const edgesByPredicate = {};
+            vizData.edges.forEach(edge => {
+                if (!edgesByPredicate[edge.predicate]) {
+                    edgesByPredicate[edge.predicate] = [];
+                }
+                edgesByPredicate[edge.predicate].push(edge.id);
+            });
+
+            const nodesByCluster = {};
+            vizData.clusters.forEach(cluster => {
+                cluster.members.forEach(member => {
+                    if (!nodesByCluster[cluster.id]) {
+                        nodesByCluster[cluster.id] = new Set();
+                    }
+                    nodesByCluster[cluster.id].add(member);
+                });
+            });
+
+            function renderStats() {
+                const grid = document.getElementById('statsGrid');
+                const stats = vizData.stats;
+                const entries = [
+                    { label: 'Entities', value: stats.entities },
+                    { label: 'Relations', value: stats.relations },
+                    { label: 'Relation types', value: stats.relationTypes },
+                    { label: 'Entity clusters', value: stats.entityClusters },
+                    { label: 'Edge clusters', value: stats.edgeClusters },
+                    { label: 'Isolated entities', value: stats.isolatedEntities },
+                    { label: 'Components', value: stats.components },
+                    { label: 'Average degree', value: stats.averageDegree }
+                ];
+                grid.innerHTML = entries
+                    .map(entry => `
+                        <div class="stat-card">
+                            <div class="stat-value">${entry.value}</div>
+                            <div>${entry.label}</div>
+                        </div>
+                    `)
+                    .join('');
+            }
+
+            function renderTopLists() {
+                const topEntitiesContainer = document.getElementById('topEntities');
+                const topRelationsContainer = document.getElementById('topRelations');
+
+                const entityItems = vizData.topEntities.map(item => {
+                    const clusterLabel = item.cluster ? `${item.cluster}` : 'Unclustered';
+                    return `
+                        <div class="list-item">
+                            <div>
+                                <strong>${item.label}</strong>
+                                <div class="meta">Cluster: ${clusterLabel}</div>
+                            </div>
+                            <div>${item.degree}</div>
+                        </div>
+                    `;
+                });
+                topEntitiesContainer.innerHTML = entityItems.join('') || '<div class="meta">No entities</div>';
+
+                const relationItems = vizData.topRelations.map(item => `
+                    <div class="list-item relation-item" data-predicate="${item.predicate}">
+                        <div>
+                            <strong>${item.predicate}</strong>
+                            <div class="meta">${item.count} relations</div>
+                        </div>
+                        <div class="pill" style="background: ${item.color}1a; border: 1px solid ${item.color};">${item.count}</div>
+                    </div>
+                `);
+                topRelationsContainer.innerHTML = relationItems.join('') || '<div class="meta">No relations</div>';
+            }
+
+            function renderClusters() {
+                const container = document.getElementById('clusterList');
+                if (!vizData.clusters.length) {
+                    container.innerHTML = '<div class="meta">No cluster information provided.</div>';
+                    return;
+                }
+                container.innerHTML = vizData.clusters
+                    .map(cluster => `
+                        <button class="list-item cluster-item" data-cluster="${cluster.id}" style="border-left-color: ${cluster.color};">
+                            <div>
+                                <strong>${cluster.label}</strong>
+                                <div class="meta">${cluster.size} members</div>
+                            </div>
+                            <span class="legend-swatch" style="background: ${cluster.color};"></span>
+                        </button>
+                    `)
+                    .join('');
+            }
+
+            // function renderRelationsTable() {
+            //     const tbody = document.getElementById('relationsTable');
+            //     tbody.innerHTML = vizData.relations
+            //         .map(rel => `
+            //             <tr data-edge="${rel.edgeId}">
+            //                 <td>${rel.source}</td>
+            //                 <td><span class="pill" style="border: 1px solid ${rel.color}; background: ${rel.color}1a;">${rel.predicate}</span></td>
+            //                 <td>${rel.target}</td>
+            //             </tr>
+            //         `)
+            //         .join('');
+            // }
+
+            // function renderInsights() {
+            //     const insights = document.getElementById('insightsContent');
+            //     const clusters = vizData.clusters
+            //         .map(cluster => `
+            //             <div class="list-item" style="border-left: 4px solid ${cluster.color};">
+            //                 <div>
+            //                     <strong>${cluster.label}</strong>
+            //                     <div class="meta">Members: ${cluster.members.join(', ')}</div>
+            //                 </div>
+            //                 <div>${cluster.size}</div>
+            //             </div>
+            //         `)
+            //         .join('');
+
+            //     const components = vizData.components
+            //         .map((component, index) => `
+            //             <div class="list-item">
+            //                 <div>
+            //                     <strong>Component ${index + 1}</strong>
+            //                     <div class="meta">${component.members.join(', ')}</div>
+            //                 </div>
+            //                 <div>${component.size}</div>
+            //             </div>
+            //         `)
+            //         .join('');
+
+            //     const isolates = vizData.isolatedEntities.length
+            //         ? vizData.isolatedEntities.join(', ')
+            //         : 'None';
+
+            //     insights.innerHTML = `
+            //         <div class="section">
+            //             <h2>Clusters</h2>
+            //             <div class="list">${clusters || '<div class="meta">No clusters</div>'}</div>
+            //         </div>
+            //         <div class="section">
+            //             <h2>Connected components</h2>
+            //             <div class="list">${components || '<div class="meta">Single connected component</div>'}</div>
+            //         </div>
+            //         <div class="section">
+            //             <h2>Isolated entities</h2>
+            //             <div class="meta">${isolates}</div>
+            //         </div>
+            //     `;
+            // }
+
+            function setActiveElement(element) {
+                state.activeElement = element;
+                renderSelectionDetails();
+                updateHighlights();
+
+                // Notify parent about selection change
+                if (window.parent !== window && state.sidebarDisabled) {
+                    const selection = element ? {
+                        type: element.type,
+                        id: element.id,
+                        ...getElementDetails(element)
+                    } : null;
+                    window.parent.postMessage({
+                        type: 'selectionChanged',
+                        selection: selection
+                    }, '*');
+                }
+            }
+
+            function getElementDetails(element) {
+                if (!element) return {};
+
+                if (element.type === 'node') {
+                    const node = nodeById[element.id];
+                    return {
+                        label: node.label,
+                        cluster: node.cluster,
+                        degree: node.degree,
+                        indegree: node.indegree,
+                        outdegree: node.outdegree,
+                        neighbors: node.neighbors
+                    };
+                } else if (element.type === 'edge') {
+                    const edge = edgeById[element.id];
+                    return {
+                        source: edge.source,
+                        target: edge.target,
+                        predicate: edge.predicate,
+                        cluster: edge.cluster
+                    };
+                }
+                return {};
+            }
+
+            function clearActiveElement() {
+                state.activeElement = null;
+                renderSelectionDetails();
+                updateHighlights();
+            }
+
+            function renderSelectionDetails() {
+                const panel = document.getElementById('selectionDetails');
+                const active = state.activeElement;
+                if (!active) {
+                    panel.innerHTML = 'Click a node or relation in the network to inspect details.';
+                    return;
+                }
+
+                if (active.type === 'node') {
+                    const node = nodeById[active.id];
+                    const cluster = node.cluster ? `Cluster: ${node.cluster}` : 'Unclustered';
+                    const neighbors = node.neighbors.length ? node.neighbors.join(', ') : 'None';
+                    panel.innerHTML = `
+                        <h3>${node.label}</h3>
+                        <ul>
+                            <li>${cluster}</li>
+                            <li>Total degree: ${node.degree}</li>
+                            <li>Outgoing: ${node.outdegree}</li>
+                            <li>Incoming: ${node.indegree}</li>
+                            <li>Neighbors: ${neighbors}</li>
+                        </ul>
+                    `;
+                } else if (active.type === 'edge') {
+                    const edge = edgeById[active.id];
+                    const cluster = edge.cluster ? `Cluster: ${edge.cluster}` : 'Unclustered';
+                    panel.innerHTML = `
+                        <h3>${edge.source} → ${edge.target}</h3>
+                        <ul>
+                            <li>Relation: ${edge.predicate}</li>
+                            <li>${cluster}</li>
+                        </ul>
+                    `;
+                }
+            }
+
+            function toggleClusterFocus(clusterId) {
+                if (state.focusCluster === clusterId) {
+                    state.focusCluster = null;
+                } else {
+                    state.focusCluster = clusterId;
+                }
+                updateActiveButtons();
+                updateHighlights();
+            }
+
+            function togglePredicateFocus(predicate) {
+                if (state.focusPredicate === predicate) {
+                    state.focusPredicate = null;
+                } else {
+                    state.focusPredicate = predicate;
+                }
+                updateActiveButtons();
+                updateHighlights();
+            }
+
+            function updateActiveButtons() {
+                document.querySelectorAll('.cluster-item').forEach(item => {
+                    const clusterId = item.getAttribute('data-cluster');
+                    item.classList.toggle('active', state.focusCluster === clusterId);
+                });
+                document.querySelectorAll('.relation-item').forEach(item => {
+                    const predicate = item.getAttribute('data-predicate');
+                    item.classList.toggle('active', state.focusPredicate === predicate);
+                });
+            }
+
+            // Canvas-based network visualization
+            let canvas, ctx, transform, simulation;
+            let nodes, edges;
+            let highlightedNodes = new Set();
+            let highlightedEdges = new Set();
+            let isFiltering = false;
+
+            function createNetwork() {
+                console.log('[iframe] createNetwork starting...');
+
+                if (typeof d3 === 'undefined') {
+                    console.error('[iframe] D3.js not loaded!');
+                    return;
+                }
+                console.log('[iframe] D3.js version:', d3.version);
+
+                canvas = document.getElementById('networkCanvas');
+                if (!canvas) {
+                    console.error('[iframe] Canvas element not found!');
+                    return;
+                }
+
+                ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error('[iframe] Canvas context not available!');
+                    return;
+                }
+
+                // Force a layout recalculation to ensure proper sizing
+                canvas.offsetHeight; // Trigger reflow
+
+                // Set canvas size with device pixel ratio for crisp rendering
+                const rect = canvas.getBoundingClientRect();
+                console.log('[iframe] Canvas rect:', rect.width, 'x', rect.height);
+
+                // Ensure minimum size for mobile/narrow viewports
+                const width = Math.max(rect.width, 320);
+                const height = Math.max(rect.height, 200);
+
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                ctx.scale(dpr, dpr);
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+
+                // Initialize transform for zooming/panning
+                transform = d3.zoomIdentity;
+
+                // Clone data for simulation
+                nodes = vizData.nodes.map(node => ({ ...node }));
+                edges = vizData.edges.map(edge => ({ ...edge }));
+
+                // Create D3 force simulation
+                simulation = d3
+                    .forceSimulation(nodes)
+                    .force('link', d3.forceLink(edges).id(d => d.id).distance(120).strength(0.3))
+                    .force('charge', d3.forceManyBody().strength(-280))
+                    .force('center', d3.forceCenter(width / 2, height / 2))
+                    .force('collision', d3.forceCollide().radius(d => d.radius + 12));
+
+                // Set up zoom behavior
+                const zoom = d3.zoom()
+                    .scaleExtent([0.25, 3])
+                    .on('zoom', (event) => {
+                        transform = event.transform;
+                        render();
+                    });
+
+                d3.select(canvas).call(zoom);
+
+                // Mouse interaction handling
+                let draggedNode = null;
+                let mouseX, mouseY;
+
+                function getMousePos(event) {
+                    const rect = canvas.getBoundingClientRect();
+                    return {
+                        x: (event.clientX - rect.left - transform.x) / transform.k,
+                        y: (event.clientY - rect.top - transform.y) / transform.k
+                    };
+                }
+
+                function findNode(x, y) {
+                    for (let i = nodes.length - 1; i >= 0; i--) {
+                        const node = nodes[i];
+                        const dx = x - node.x;
+                        const dy = y - node.y;
+                        if (dx * dx + dy * dy < node.radius * node.radius) {
+                            return node;
+                        }
+                    }
+                    return null;
+                }
+
+                function findEdge(x, y) {
+                    for (let i = edges.length - 1; i >= 0; i--) {
+                        const edge = edges[i];
+                        if (!edge.source || !edge.target) continue;
+
+                        // Check if click is near the edge line
+                        const dx = edge.target.x - edge.source.x;
+                        const dy = edge.target.y - edge.source.y;
+                        const length = Math.sqrt(dx * dx + dy * dy);
+                        if (length === 0) continue;
+
+                        const dot = ((x - edge.source.x) * dx + (y - edge.source.y) * dy) / (length * length);
+                        if (dot < 0 || dot > 1) continue;
+
+                        const projX = edge.source.x + dot * dx;
+                        const projY = edge.source.y + dot * dy;
+                        const distSq = (x - projX) * (x - projX) + (y - projY) * (y - projY);
+
+                        if (distSq < 25) { // 5px threshold
+                            return edge;
+                        }
+                    }
+                    return null;
+                }
+
+                canvas.addEventListener('mousedown', (event) => {
+                    const pos = getMousePos(event);
+                    mouseX = pos.x;
+                    mouseY = pos.y;
+                    draggedNode = findNode(pos.x, pos.y);
+
+                    if (draggedNode) {
+                        simulation.alphaTarget(0.3).restart();
+                        draggedNode.fx = draggedNode.x;
+                        draggedNode.fy = draggedNode.y;
+                        canvas.style.cursor = 'grabbing';
+                    }
+                });
+
+                canvas.addEventListener('mousemove', (event) => {
+                    const pos = getMousePos(event);
+
+                    if (draggedNode) {
+                        draggedNode.fx = pos.x;
+                        draggedNode.fy = pos.y;
+                    } else {
+                        // Update cursor based on what's under mouse
+                        const node = findNode(pos.x, pos.y);
+                        const edge = findEdge(pos.x, pos.y);
+                        canvas.style.cursor = (node || edge) ? 'pointer' : 'grab';
+                    }
+                });
+
+                canvas.addEventListener('mouseup', (event) => {
+                    if (draggedNode) {
+                        simulation.alphaTarget(0);
+                        draggedNode.fx = null;
+                        draggedNode.fy = null;
+                        draggedNode = null;
+                        canvas.style.cursor = 'grab';
+                    }
+                });
+
+                canvas.addEventListener('click', (event) => {
+                    const pos = getMousePos(event);
+                    const node = findNode(pos.x, pos.y);
+                    const edge = findEdge(pos.x, pos.y);
+
+                    if (node) {
+                        setActiveElement({ type: 'node', id: node.id });
+                    } else if (edge) {
+                        setActiveElement({ type: 'edge', id: edge.id });
+                    } else {
+                        clearActiveElement();
+                    }
+                });
+
+                // Animation loop
+                simulation.on('tick', () => {
+                    render();
+                });
+
+                // Handle window resize
+                window.addEventListener('resize', resizeCanvas);
+
+                render();
+            }
+
+            function resizeCanvas() {
+                if (!canvas || !ctx) return;
+
+                // Force canvas to take full container size
+                if (state.sidebarDisabled) {
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                }
+
+                const rect = canvas.getBoundingClientRect();
+                console.log('Canvas resize - rect:', rect.width, 'x', rect.height);
+
+                // Ensure minimum size for mobile
+                const width = Math.max(rect.width, 320);
+                const height = Math.max(rect.height, 200);
+
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                ctx.scale(dpr, dpr);
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+
+                // Update simulation center
+                if (simulation) {
+                    simulation.force('center', d3.forceCenter(width / 2, height / 2));
+                    simulation.alpha(0.3).restart();
+                }
+
+                render();
+            }
+
+
+            function render() {
+                if (!ctx || !canvas) return;
+
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width / (window.devicePixelRatio || 1),
+                             canvas.height / (window.devicePixelRatio || 1));
+
+                // Apply transform
+                ctx.save();
+                ctx.translate(transform.x, transform.y);
+                ctx.scale(transform.k, transform.k);
+
+                // Set text properties
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '12px Inter, system-ui, sans-serif';
+
+                // Draw edges first
+                edges.forEach(edge => {
+                    if (!edge.source || !edge.target) return;
+
+                    const isHighlighted = highlightedEdges.has(edge.id);
+                    const isDimmed = isFiltering && !isHighlighted;
+
+                    // Calculate edge endpoints accounting for node radius
+                    const dx = edge.target.x - edge.source.x;
+                    const dy = edge.target.y - edge.source.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const normX = dx / distance;
+                    const normY = dy / distance;
+
+                    const sourcePadding = edge.source.radius + 2;
+                    const targetPadding = edge.target.radius + 8;
+                    const sourceX = edge.source.x + normX * sourcePadding;
+                    const sourceY = edge.source.y + normY * sourcePadding;
+                    const targetX = edge.target.x - normX * targetPadding;
+                    const targetY = edge.target.y - normY * targetPadding;
+
+                    // Draw edge line
+                    ctx.strokeStyle = edge.color;
+                    ctx.globalAlpha = isDimmed ? 0.15 : (isHighlighted ? 1.0 : 0.55);
+                    ctx.lineWidth = 1.4;
+                    ctx.beginPath();
+                    ctx.moveTo(sourceX, sourceY);
+                    ctx.lineTo(targetX, targetY);
+                    ctx.stroke();
+
+                    // Draw arrowhead
+                    const arrowLength = 10;
+                    const arrowWidth = 5;
+                    const angle = Math.atan2(dy, dx);
+
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.beginPath();
+                    ctx.moveTo(targetX, targetY);
+                    ctx.lineTo(
+                        targetX - arrowLength * Math.cos(angle - arrowWidth * Math.PI / 180),
+                        targetY - arrowLength * Math.sin(angle - arrowWidth * Math.PI / 180)
+                    );
+                    ctx.lineTo(
+                        targetX - arrowLength * Math.cos(angle + arrowWidth * Math.PI / 180),
+                        targetY - arrowLength * Math.sin(angle + arrowWidth * Math.PI / 180)
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Draw edge label if zoom level is appropriate
+                    if (transform.k > 0.8) {
+                        const labelX = (sourceX + targetX) / 2;
+                        const labelY = (sourceY + targetY) / 2;
+
+                        ctx.fillStyle = isDimmed ? 'rgba(30, 41, 59, 0.15)' : 'rgba(30, 41, 59, 0.8)';
+                        ctx.font = '10px Inter, system-ui, sans-serif';
+                        ctx.fillText(edge.predicate, labelX, labelY);
+                    }
+                });
+
+                // Draw nodes
+                nodes.forEach(node => {
+                    const isHighlighted = highlightedNodes.has(node.id);
+                    const isDimmed = isFiltering && !isHighlighted;
+
+                    // Draw node circle
+                    ctx.fillStyle = node.color;
+                    ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                    ctx.fill();
+
+                    // Draw node border
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = isHighlighted ? 2.4 : 1.2;
+                    ctx.stroke();
+
+                    // Draw node label
+                    if (transform.k > 0.5) {
+                        ctx.fillStyle = isDimmed ? 'rgba(15, 23, 42, 0.15)' : '#0f172a';
+                        ctx.font = '12px Inter, system-ui, sans-serif';
+                        ctx.fillText(node.label, node.x, node.y + node.radius + 14);
+                    }
+                });
+
+                ctx.restore();
+                ctx.globalAlpha = 1.0;
+            }
+
+            function updateHighlights() {
+                // Clear previous highlights
+                highlightedNodes.clear();
+                highlightedEdges.clear();
+                isFiltering = false;
+
+                const addNode = id => {
+                    if (id) {
+                        highlightedNodes.add(id);
+                    }
+                };
+                const addEdge = id => {
+                    if (id) {
+                        highlightedEdges.add(id);
+                    }
+                };
+
+                if (state.activeElement) {
+                    isFiltering = true;
+                    if (state.activeElement.type === 'node') {
+                        const node = nodeById[state.activeElement.id];
+                        addNode(node.id);
+                        node.neighbors.forEach(addNode);
+                        (node.edgeIds.outgoing || []).forEach(addEdge);
+                        (node.edgeIds.incoming || []).forEach(addEdge);
+                    } else if (state.activeElement.type === 'edge') {
+                        const edge = edgeById[state.activeElement.id];
+                        addEdge(edge.id);
+                        addNode(edge.source);
+                        addNode(edge.target);
+                    }
+                }
+
+                if (state.focusCluster && nodesByCluster[state.focusCluster]) {
+                    isFiltering = true;
+                    nodesByCluster[state.focusCluster].forEach(addNode);
+                    vizData.edges.forEach(edge => {
+                        if (
+                            nodesByCluster[state.focusCluster].has(edge.source) &&
+                            nodesByCluster[state.focusCluster].has(edge.target)
+                        ) {
+                            addEdge(edge.id);
+                        }
+                    });
+                }
+
+                if (state.focusPredicate && edgesByPredicate[state.focusPredicate]) {
+                    isFiltering = true;
+                    edgesByPredicate[state.focusPredicate].forEach(edgeId => {
+                        addEdge(edgeId);
+                        const edge = edgeById[edgeId];
+                        addNode(edge.source);
+                        addNode(edge.target);
+                    });
+                }
+
+                if (state.searchTerm) {
+                    const term = state.searchTerm.toLowerCase();
+                    isFiltering = true;
+                    vizData.nodes.forEach(node => {
+                        if (node.label.toLowerCase().includes(term)) {
+                            addNode(node.id);
+                            node.neighbors.forEach(addNode);
+                        }
+                    });
+                    vizData.edges.forEach(edge => {
+                        if (edge.predicate.toLowerCase().includes(term)) {
+                            addEdge(edge.id);
+                            addNode(edge.source);
+                            addNode(edge.target);
+                        }
+                    });
+                }
+
+                // Trigger re-render with updated highlights
+                render();
+            }
+
+            function toggleSidebar() {
+                if (state.sidebarDisabled) return;
+
+                state.sidebarCollapsed = !state.sidebarCollapsed;
+                const layout = document.querySelector('.layout');
+                const sidebar = document.querySelector('.sidebar');
+                const toggleButton = document.getElementById('sidebarToggle');
+
+                layout.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+                sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
+                toggleButton.classList.toggle('collapsed', state.sidebarCollapsed);
+
+                // Trigger canvas resize when sidebar toggles
+                setTimeout(() => {
+                    resizeCanvas();
+                }, 300); // Wait for transition to complete
+            }
+
+            function disableSidebar() {
+                state.sidebarDisabled = true;
+
+                const layout = document.querySelector('.layout');
+                const sidebar = document.querySelector('.sidebar');
+                const toggleButton = document.getElementById('sidebarToggle');
+                const main = document.querySelector('.main');
+                const tabPanel = document.querySelector('.tab-panel');
+                const networkPanel = document.querySelector('.network-panel');
+
+                layout.classList.add('sidebar-disabled');
+                sidebar.style.display = 'none';
+                toggleButton.style.display = 'none';
+
+                // Force styles directly for iframe context
+                main.style.width = '100%';
+                main.style.height = '100vh';
+                tabPanel.style.padding = '0';
+                tabPanel.style.width = '100%';
+                tabPanel.style.height = '100vh';
+                networkPanel.style.width = '100%';
+                networkPanel.style.height = '100vh';
+                networkPanel.style.borderRadius = '0';
+                networkPanel.style.border = 'none';
+
+                console.log('Sidebar disabled, forcing full width styles');
+
+                // Multiple resize attempts with forced reflow
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('First resize attempt after 200ms');
+                    resizeCanvas();
+                }, 200);
+
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('Second resize attempt after 500ms');
+                    resizeCanvas();
+                }, 500);
+
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('Final resize attempt after 800ms');
+                    resizeCanvas();
+                }, 800);
+
+                // Notify parent about graph data
+                if (window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'graphDataReady',
+                        data: vizData
+                    }, '*');
+                }
+            }
+
+            function bindInteractions() {
+                document.querySelectorAll('.cluster-item').forEach(item => {
+                    item.addEventListener('click', () => toggleClusterFocus(item.getAttribute('data-cluster')));
+                });
+
+                document.querySelectorAll('.relation-item').forEach(item => {
+                    item.addEventListener('click', () => togglePredicateFocus(item.getAttribute('data-predicate')));
+                });
+
+                // document.getElementById('relationsTable').addEventListener('click', event => {
+                //     const row = event.target.closest('tr');
+                //     if (!row) {
+                //         return;
+                //     }
+                //     const edgeId = row.getAttribute('data-edge');
+                //     if (edgeId) {
+                //         setActiveElement({ type: 'edge', id: edgeId });
+                //     }
+                // });
+
+                const searchInput = document.getElementById('searchInput');
+                searchInput.addEventListener('input', () => {
+                    state.searchTerm = searchInput.value.trim();
+                    updateHighlights();
+
+                    // Notify parent about search change
+                    if (window.parent !== window && state.sidebarDisabled) {
+                        window.parent.postMessage({
+                            type: 'searchChanged',
+                            searchTerm: state.searchTerm
+                        }, '*');
+                    }
+                });
+                searchInput.addEventListener('keydown', event => {
+                    if (event.key === 'Escape') {
+                        searchInput.value = '';
+                        state.searchTerm = '';
+                        updateHighlights();
+                    }
+                });
+
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', event => {
+                        const target = event.currentTarget;
+                        document.querySelectorAll('.tab').forEach(button => button.classList.remove('active'));
+                        target.classList.add('active');
+                        const tabId = target.getAttribute('data-tab');
+                        document.querySelectorAll('.tab-panel').forEach(panel => {
+                            panel.classList.toggle('active', panel.id === tabId);
+                        });
+                    });
+                });
+
+                document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+
+                // Listen for messages from parent
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'disableInternalSidebar') {
+                        disableSidebar();
+                    } else if (event.data.type === 'search') {
+                        state.searchTerm = event.data.term || '';
+                        updateHighlights();
+                    } else if (event.data.type === 'focusCluster') {
+                        toggleClusterFocus(event.data.clusterId);
+                    } else if (event.data.type === 'focusPredicate') {
+                        togglePredicateFocus(event.data.predicate);
+                    }
+                });
+
+            }
+
+            renderStats();
+            renderTopLists();
+            renderClusters();
+            // renderRelationsTable();
+            // renderInsights();
+
+            // Delay network creation to ensure proper layout
+            setTimeout(() => {
+                createNetwork();
+                bindInteractions();
+            }, 100);
+        })();
+    </script>
+</body>
+
+</html>
