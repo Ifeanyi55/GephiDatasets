@@ -1,0 +1,4574 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knowledge Graph Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            height: 100vh;
+            transition: grid-template-columns 0.3s ease;
+        }
+
+        .layout.sidebar-collapsed {
+            grid-template-columns: 0px 1fr;
+        }
+
+        .layout.sidebar-disabled {
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+
+        .layout.sidebar-disabled .main {
+            width: 100vw !important;
+        }
+
+        .layout.sidebar-disabled .tab-panel {
+            padding: 0 !important;
+            width: 100vw !important;
+        }
+
+        .layout.sidebar-disabled .network-panel {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0;
+            border: none;
+            max-width: none !important;
+        }
+
+        .layout.sidebar-disabled #networkCanvas {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+        }
+
+        /* Force canvas to take full iframe space */
+        canvas#networkCanvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .sidebar {
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            padding: 24px 24px 16px;
+            overflow-y: auto;
+            transition: width 0.3s ease, opacity 0.3s ease;
+            display: block; /* Visible in standalone mode */
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            padding: 24px 0 16px;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        .sidebar h1 {
+            margin: 0 0 8px;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .sidebar p {
+            margin: 0 0 20px;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section h2 {
+            font-size: 1rem;
+            margin: 0 0 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1e293b;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5f5;
+            border-radius: 10px;
+            font-size: 0.95rem;
+        }
+
+        .search-hint {
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .list-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .list-item strong {
+            font-weight: 600;
+        }
+
+        .cluster-item,
+        .relation-item {
+            border-left: 4px solid transparent;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .cluster-item:hover,
+        .relation-item:hover {
+            background: #e2e8f0;
+        }
+
+        .cluster-item.active,
+        .relation-item.active {
+            transform: translateX(4px);
+            background: #e2e8f0;
+        }
+
+        .cluster-item .meta,
+        .relation-item .meta {
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        .main {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            padding: 16px 20px 0;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .tab {
+            border: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            padding: 10px 16px;
+            border-radius: 999px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .tab.active {
+            background: #1d4ed8;
+            color: #ffffff;
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: none; /* Hidden when sidebar is disabled */
+        }
+
+        .sidebar-toggle:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .sidebar-toggle::before {
+            content: '☰';
+            margin-right: 6px;
+        }
+
+        .sidebar-toggle.collapsed::before {
+            content: '☰';
+        }
+
+        .tab-panel {
+            flex: 1;
+            display: none;
+            padding: 16px 20px;
+            overflow: hidden;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .network-panel {
+            height: calc(100vh - 74px);
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        #networkCanvas {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+        }
+
+        #networkCanvas {
+            cursor: grab;
+        }
+
+        #networkCanvas:active {
+            cursor: grabbing;
+        }
+
+        .selection-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+
+        .selection-card h3 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+        }
+
+        .selection-card ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .selection-card li {
+            margin-bottom: 4px;
+            color: #475569;
+        }
+
+        .table-container {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            height: calc(100vh - 90px);
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: #f8fafc;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            font-size: 0.75rem;
+            color: #0f172a;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: #475569;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.25);
+        }
+
+
+        /* Mobile/narrow iframe handling - when sidebar is disabled, use full space */
+        @media (max-width: 800px) {
+            .layout:not(.sidebar-disabled) {
+                grid-template-columns: 1fr;
+            }
+
+            .layout:not(.sidebar-disabled) .sidebar {
+                height: 280px;
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+            }
+
+            .layout:not(.sidebar-disabled) .main {
+                height: calc(100vh - 280px);
+            }
+
+            /* When sidebar is disabled (iframe mode), ensure full viewport usage */
+            .layout.sidebar-disabled .main {
+                width: 100% !important;
+                height: 100vh !important;
+            }
+
+            .layout.sidebar-disabled .tab-panel {
+                padding: 0 !important;
+                width: 100% !important;
+                height: 100vh !important;
+            }
+
+            .layout.sidebar-disabled .network-panel {
+                width: 100% !important;
+                height: 100vh !important;
+                border-radius: 0 !important;
+                border: none !important;
+                max-width: none !important;
+            }
+
+            .layout.sidebar-disabled #networkCanvas {
+                width: 100% !important;
+                height: 100vh !important;
+                max-width: none !important;
+            }
+
+            /* Ensure iframe canvas takes full space on mobile */
+            canvas#networkCanvas {
+                width: 100% !important;
+                height: 100% !important;
+                min-width: 100% !important;
+                min-height: 100% !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <h1>Knowledge Graph Explorer</h1>
+            <p>Search, highlight, and inspect entities and relations to understand how the graph fits together.</p>
+            <div class="stats-grid" id="statsGrid"></div>
+            <div class="section">
+                <h2>Search</h2>
+                <input id="searchInput" class="search-input" type="text" placeholder="Search for entities or
+                    relations" />
+                <div class="search-hint">Matches are highlighted. Press Escape to clear.</div>
+            </div>
+            <div class="section" id="selectionSection">
+                <h2>Selection</h2>
+                <div id="selectionDetails" class="selection-card">Click a node or relation in the network to inspect
+                    details.</div>
+            </div>
+            <div class="section">
+                <h2>Entity Clusters</h2>
+                <div id="clusterList" class="list"></div>
+            </div>
+            <div class="section">
+                <h2>Top Entities</h2>
+                <div id="topEntities" class="list"></div>
+            </div>
+            <div class="section">
+                <h2>Top Relations</h2>
+                <div id="topRelations" class="list"></div>
+            </div>
+        </aside>
+        <main class="main">
+            <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar"></button>
+            <div class="tab-bar" style="padding-bottom: 10px; display: none;">
+                <button class="tab active" data-tab="network">Network</button>
+                <!-- <button class="tab" data-tab="relations">Relations</button>
+                <button class="tab" data-tab="insights">Insights</button> -->
+            </div>
+            <section id="network" class="tab-panel active">
+                <div class="network-panel">
+                    <canvas id="networkCanvas"></canvas>
+                </div>
+            </section>
+            <!-- <section id="relations" class="tab-panel">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Relation</th>
+                                <th>Object</th>
+                            </tr>
+                        </thead>
+                        <tbody id="relationsTable"></tbody>
+                    </table>
+                </div>
+            </section>
+            <section id="insights" class="tab-panel">
+                <div class="table-container" style="padding: 20px;">
+                    <div id="insightsContent"></div>
+                </div>
+            </section> -->
+        </main>
+    </div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script id="viz-data" type="application/json">
+{
+  "nodes": [
+    {
+      "id": "Airbnb",
+      "label": "Airbnb",
+      "cluster": null,
+      "color": "#31db45",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Knowledge Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e8"
+        ]
+      }
+    },
+    {
+      "id": "Allan M. Collins",
+      "label": "Allan M. Collins",
+      "cluster": null,
+      "color": "#4d77f0",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "M. Ross Quillian",
+        "Retrieval Time from Semantic Memory"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e6"
+        ],
+        "outgoing": [
+          "e59"
+        ]
+      }
+    },
+    {
+      "id": "Amazon",
+      "label": "Amazon",
+      "cluster": null,
+      "color": "#e65959",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Product Graph"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e9"
+        ]
+      }
+    },
+    {
+      "id": "Amit Singhal",
+      "label": "Amit Singhal",
+      "cluster": null,
+      "color": "#d6427d",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Google Knowledge Graph"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e0"
+        ]
+      }
+    },
+    {
+      "id": "Aristotle",
+      "label": "Aristotle",
+      "cluster": null,
+      "color": "#362ed4",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Tree of Porphyry"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e45"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "artificial intelligence",
+      "label": "artificial intelligence",
+      "cluster": null,
+      "color": "#d74a2e",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Beam",
+      "label": "Beam",
+      "cluster": null,
+      "color": "#7562ec",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "eBay"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e55"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "C. Hoede",
+      "label": "C. Hoede",
+      "cluster": null,
+      "color": "#d66363",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "The Dutch School"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e52"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Cambridge Language Research Unit",
+      "label": "Cambridge Language Research Unit",
+      "cluster": null,
+      "color": "#27b8e2",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Richard H. Richens"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e20"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Carnegie Mellon University",
+      "label": "Carnegie Mellon University",
+      "cluster": null,
+      "color": "#a4bf2a",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "M. Ross Quillian"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e4"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Charles Sanders Peirce",
+      "label": "Charles Sanders Peirce",
+      "cluster": null,
+      "color": "#cf4c37",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "existential graphs"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e47"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Chris Bizer",
+      "label": "Chris Bizer",
+      "cluster": null,
+      "color": "#5053ee",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "DBpedia"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e27"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "CIA World Factbook",
+      "label": "CIA World Factbook",
+      "cluster": null,
+      "color": "#c913df",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Google Knowledge Graph"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e31"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "cognitive psychology",
+      "label": "cognitive psychology",
+      "cluster": null,
+      "color": "#6c75ea",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Conceptual Graphs",
+      "label": "Conceptual Graphs",
+      "cluster": null,
+      "color": "#76dcc5",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "existential graphs",
+        "John F. Sowa"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e34"
+        ],
+        "outgoing": [
+          "e7"
+        ]
+      }
+    },
+    {
+      "id": "Cyc project",
+      "label": "Cyc project",
+      "cluster": null,
+      "color": "#e1ec30",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Doug Lenat"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e62"
+        ]
+      }
+    },
+    {
+      "id": "database theory",
+      "label": "database theory",
+      "cluster": null,
+      "color": "#6c5cde",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "DBpedia",
+      "label": "DBpedia",
+      "cluster": null,
+      "color": "#e1d83c",
+      "degree": 6,
+      "indegree": 0,
+      "outdegree": 6,
+      "isRepresentative": false,
+      "radius": 30,
+      "neighbors": [
+        "Chris Bizer",
+        "Free University of Berlin",
+        "Leipzig University",
+        "Linked Open Data",
+        "Sören Auer",
+        "Wikipedia"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e21",
+          "e27",
+          "e28",
+          "e29",
+          "e30",
+          "e35"
+        ]
+      }
+    },
+    {
+      "id": "Doug Lenat",
+      "label": "Doug Lenat",
+      "cluster": null,
+      "color": "#e75913",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Cyc project"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e62"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "eBay",
+      "label": "eBay",
+      "cluster": null,
+      "color": "#b9692e",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Beam"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e55"
+        ]
+      }
+    },
+    {
+      "id": "Economic Graph",
+      "label": "Economic Graph",
+      "cluster": null,
+      "color": "#f05295",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "LinkedIn"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e12"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Edgar W. Schneider",
+      "label": "Edgar W. Schneider",
+      "cluster": null,
+      "color": "#e8d568",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Knowledge Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e5"
+        ]
+      }
+    },
+    {
+      "id": "Enterprise Knowledge Graphs",
+      "label": "Enterprise Knowledge Graphs",
+      "cluster": null,
+      "color": "#34ec52",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Entity Graph",
+      "label": "Entity Graph",
+      "cluster": null,
+      "color": "#9138e4",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Facebook",
+        "Unicorn system"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e10"
+        ],
+        "outgoing": [
+          "e41"
+        ]
+      }
+    },
+    {
+      "id": "existential graphs",
+      "label": "existential graphs",
+      "cluster": null,
+      "color": "#d87742",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Charles Sanders Peirce",
+        "Conceptual Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e7"
+        ],
+        "outgoing": [
+          "e47"
+        ]
+      }
+    },
+    {
+      "id": "F.N. Stokman",
+      "label": "F.N. Stokman",
+      "cluster": null,
+      "color": "#7edfd4",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "The Dutch School"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e53"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Facebook",
+      "label": "Facebook",
+      "cluster": null,
+      "color": "#3cdfa4",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Entity Graph",
+        "Graph Search"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e10",
+          "e11"
+        ]
+      }
+    },
+    {
+      "id": "Food Knowledge Graph",
+      "label": "Food Knowledge Graph",
+      "cluster": null,
+      "color": "#66d827",
+      "degree": 3,
+      "indegree": 2,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "Uber Eats",
+        "Uber Engineering"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e15",
+          "e16"
+        ],
+        "outgoing": [
+          "e46"
+        ]
+      }
+    },
+    {
+      "id": "Free University of Berlin",
+      "label": "Free University of Berlin",
+      "cluster": null,
+      "color": "#d9b146",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "DBpedia"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e28"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Freebase",
+      "label": "Freebase",
+      "cluster": null,
+      "color": "#7770d7",
+      "degree": 4,
+      "indegree": 2,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 26,
+      "neighbors": [
+        "Google Knowledge Graph",
+        "Linked Open Data",
+        "Metaweb"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e32",
+          "e51"
+        ],
+        "outgoing": [
+          "e36",
+          "e65"
+        ]
+      }
+    },
+    {
+      "id": "Google",
+      "label": "Google",
+      "cluster": null,
+      "color": "#4ae484",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Google Knowledge Graph",
+        "Metaweb"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e50",
+          "e68"
+        ]
+      }
+    },
+    {
+      "id": "Google Knowledge Graph",
+      "label": "Google Knowledge Graph",
+      "cluster": null,
+      "color": "#d24ac7",
+      "degree": 7,
+      "indegree": 3,
+      "outdegree": 4,
+      "isRepresentative": false,
+      "radius": 32,
+      "neighbors": [
+        "Amit Singhal",
+        "CIA World Factbook",
+        "Freebase",
+        "Google",
+        "Knowledge Panels",
+        "Wikipedia"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e0",
+          "e50",
+          "e65"
+        ],
+        "outgoing": [
+          "e31",
+          "e32",
+          "e33",
+          "e48"
+        ]
+      }
+    },
+    {
+      "id": "GPT-4",
+      "label": "GPT-4",
+      "cluster": null,
+      "color": "#1dcc32",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Large Language Models (LLMs)"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e42"
+        ]
+      }
+    },
+    {
+      "id": "Graph Neural Networks (GNNs)",
+      "label": "Graph Neural Networks (GNNs)",
+      "cluster": null,
+      "color": "#402ac5",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Pinterest",
+        "Uber Eats"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e1",
+          "e2"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Graph Search",
+      "label": "Graph Search",
+      "cluster": null,
+      "color": "#df403d",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Facebook"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e11"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "GraphRAG",
+      "label": "GraphRAG",
+      "cluster": null,
+      "color": "#e056a4",
+      "degree": 4,
+      "indegree": 1,
+      "outdegree": 3,
+      "isRepresentative": false,
+      "radius": 26,
+      "neighbors": [
+        "Knowledge Graphs",
+        "Large Language Models (LLMs)",
+        "Retrieval-Augmented Generation"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e38"
+        ],
+        "outgoing": [
+          "e40",
+          "e49",
+          "e61"
+        ]
+      }
+    },
+    {
+      "id": "GraphSAGE",
+      "label": "GraphSAGE",
+      "cluster": null,
+      "color": "#e336e9",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Uber Engineering"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e66"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "John F. Sowa",
+      "label": "John F. Sowa",
+      "cluster": null,
+      "color": "#db5412",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Conceptual Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e34"
+        ]
+      }
+    },
+    {
+      "id": "Knowledge Graph Embeddings",
+      "label": "Knowledge Graph Embeddings",
+      "cluster": null,
+      "color": "#7bc82f",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Knowledge Graphs",
+      "label": "Knowledge Graphs",
+      "cluster": null,
+      "color": "#eb60c2",
+      "degree": 11,
+      "indegree": 7,
+      "outdegree": 4,
+      "isRepresentative": false,
+      "radius": 34,
+      "neighbors": [
+        "Airbnb",
+        "Edgar W. Schneider",
+        "GraphRAG",
+        "Large Language Models (LLMs)",
+        "Neuro-Symbolic AI",
+        "Semantic Networks",
+        "The Dutch School",
+        "University of Groningen",
+        "University of Twente"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e5",
+          "e8",
+          "e22",
+          "e23",
+          "e61",
+          "e67",
+          "e69"
+        ],
+        "outgoing": [
+          "e3",
+          "e25",
+          "e38",
+          "e39"
+        ]
+      }
+    },
+    {
+      "id": "Knowledge Panels",
+      "label": "Knowledge Panels",
+      "cluster": null,
+      "color": "#b724d6",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Google Knowledge Graph"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e48"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Labeled Property Graphs (LPG)",
+      "label": "Labeled Property Graphs (LPG)",
+      "cluster": null,
+      "color": "#6f45e8",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Neo4j"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e57"
+        ]
+      }
+    },
+    {
+      "id": "Large Language Models (LLMs)",
+      "label": "Large Language Models (LLMs)",
+      "cluster": null,
+      "color": "#1ae34e",
+      "degree": 3,
+      "indegree": 3,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "GPT-4",
+        "GraphRAG",
+        "Knowledge Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e3",
+          "e42",
+          "e49"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Leipzig University",
+      "label": "Leipzig University",
+      "cluster": null,
+      "color": "#23c6e9",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "DBpedia"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e29"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "linguistics",
+      "label": "linguistics",
+      "cluster": null,
+      "color": "#4cdd7c",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Linked Open Data",
+      "label": "Linked Open Data",
+      "cluster": null,
+      "color": "#8e77e4",
+      "degree": 3,
+      "indegree": 3,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "DBpedia",
+        "Freebase",
+        "YAGO"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e35",
+          "e36",
+          "e37"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "LinkedIn",
+      "label": "LinkedIn",
+      "cluster": null,
+      "color": "#e55313",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Economic Graph"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e12"
+        ]
+      }
+    },
+    {
+      "id": "Luna Dong",
+      "label": "Luna Dong",
+      "cluster": null,
+      "color": "#2f32bb",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Product Graph"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e54"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "M. Ross Quillian",
+      "label": "M. Ross Quillian",
+      "cluster": null,
+      "color": "#d5438b",
+      "degree": 5,
+      "indegree": 1,
+      "outdegree": 4,
+      "isRepresentative": false,
+      "radius": 28,
+      "neighbors": [
+        "Allan M. Collins",
+        "Carnegie Mellon University",
+        "Retrieval Time from Semantic Memory",
+        "Semantic Networks"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e13"
+        ],
+        "outgoing": [
+          "e4",
+          "e6",
+          "e58",
+          "e60"
+        ]
+      }
+    },
+    {
+      "id": "Max Planck Institute for Informatics",
+      "label": "Max Planck Institute for Informatics",
+      "cluster": null,
+      "color": "#6eb3d7",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "YAGO"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e19"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Metaweb",
+      "label": "Metaweb",
+      "cluster": null,
+      "color": "#5aeb57",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Freebase",
+        "Google"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e68"
+        ],
+        "outgoing": [
+          "e51"
+        ]
+      }
+    },
+    {
+      "id": "Neo4j",
+      "label": "Neo4j",
+      "cluster": null,
+      "color": "#f16467",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Labeled Property Graphs (LPG)"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e57"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Neuro-Symbolic AI",
+      "label": "Neuro-Symbolic AI",
+      "cluster": null,
+      "color": "#358ec1",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Knowledge Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e39"
+        ],
+        "outgoing": [
+          "e69"
+        ]
+      }
+    },
+    {
+      "id": "OWL (Web Ontology Language)",
+      "label": "OWL (Web Ontology Language)",
+      "cluster": null,
+      "color": "#16d88c",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "W3C"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e17"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Pinterest",
+      "label": "Pinterest",
+      "cluster": null,
+      "color": "#4b43e1",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Graph Neural Networks (GNNs)"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e1"
+        ]
+      }
+    },
+    {
+      "id": "Product Graph",
+      "label": "Product Graph",
+      "cluster": null,
+      "color": "#a236ed",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Amazon",
+        "Luna Dong"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e9"
+        ],
+        "outgoing": [
+          "e54"
+        ]
+      }
+    },
+    {
+      "id": "RDF (Resource Description Framework)",
+      "label": "RDF (Resource Description Framework)",
+      "cluster": null,
+      "color": "#4ace21",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "W3C"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e18"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "RDF Stores",
+      "label": "RDF Stores",
+      "cluster": null,
+      "color": "#e4734c",
+      "degree": 3,
+      "indegree": 2,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "Semantic Web",
+        "Stardog",
+        "Virtuoso"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e43",
+          "e44"
+        ],
+        "outgoing": [
+          "e56"
+        ]
+      }
+    },
+    {
+      "id": "Retrieval Time from Semantic Memory",
+      "label": "Retrieval Time from Semantic Memory",
+      "cluster": null,
+      "color": "#4069d2",
+      "degree": 2,
+      "indegree": 2,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Allan M. Collins",
+        "M. Ross Quillian"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e59",
+          "e60"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Retrieval-Augmented Generation",
+      "label": "Retrieval-Augmented Generation",
+      "cluster": null,
+      "color": "#d56e5d",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "GraphRAG"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e40"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Richard H. Richens",
+      "label": "Richard H. Richens",
+      "cluster": null,
+      "color": "#5f34cd",
+      "degree": 3,
+      "indegree": 1,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "Cambridge Language Research Unit",
+        "Semantic Nets",
+        "Semantic Networks"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e14"
+        ],
+        "outgoing": [
+          "e20",
+          "e26"
+        ]
+      }
+    },
+    {
+      "id": "Semantic Nets",
+      "label": "Semantic Nets",
+      "cluster": null,
+      "color": "#de4279",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Richard H. Richens"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e26"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Semantic Networks",
+      "label": "Semantic Networks",
+      "cluster": null,
+      "color": "#ea4457",
+      "degree": 4,
+      "indegree": 2,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 26,
+      "neighbors": [
+        "Knowledge Graphs",
+        "M. Ross Quillian",
+        "Richard H. Richens"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e25",
+          "e58"
+        ],
+        "outgoing": [
+          "e13",
+          "e14"
+        ]
+      }
+    },
+    {
+      "id": "Semantic Web",
+      "label": "Semantic Web",
+      "cluster": null,
+      "color": "#4ae467",
+      "degree": 2,
+      "indegree": 1,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "RDF Stores",
+        "Tim Berners-Lee"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e56"
+        ],
+        "outgoing": [
+          "e24"
+        ]
+      }
+    },
+    {
+      "id": "SPARQL",
+      "label": "SPARQL",
+      "cluster": null,
+      "color": "#6d73e9",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Stardog",
+      "label": "Stardog",
+      "cluster": null,
+      "color": "#e73a6b",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "RDF Stores"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e43"
+        ]
+      }
+    },
+    {
+      "id": "Sören Auer",
+      "label": "Sören Auer",
+      "cluster": null,
+      "color": "#71e28f",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "DBpedia"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e30"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "The Dutch School",
+      "label": "The Dutch School",
+      "cluster": null,
+      "color": "#7bd32d",
+      "degree": 3,
+      "indegree": 0,
+      "outdegree": 3,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "C. Hoede",
+        "F.N. Stokman",
+        "Knowledge Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e52",
+          "e53",
+          "e67"
+        ]
+      }
+    },
+    {
+      "id": "Tim Berners-Lee",
+      "label": "Tim Berners-Lee",
+      "cluster": null,
+      "color": "#b82e79",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Semantic Web"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e24"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Tree of Porphyry",
+      "label": "Tree of Porphyry",
+      "cluster": null,
+      "color": "#67efad",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Aristotle"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e45"
+        ]
+      }
+    },
+    {
+      "id": "Triplestores",
+      "label": "Triplestores",
+      "cluster": null,
+      "color": "#31ba61",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "Uber Eats",
+      "label": "Uber Eats",
+      "cluster": null,
+      "color": "#29d94e",
+      "degree": 3,
+      "indegree": 1,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "Food Knowledge Graph",
+        "Graph Neural Networks (GNNs)"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e46"
+        ],
+        "outgoing": [
+          "e2",
+          "e15"
+        ]
+      }
+    },
+    {
+      "id": "Uber Engineering",
+      "label": "Uber Engineering",
+      "cluster": null,
+      "color": "#3ee531",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "Food Knowledge Graph",
+        "GraphSAGE"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e16",
+          "e66"
+        ]
+      }
+    },
+    {
+      "id": "Unicorn system",
+      "label": "Unicorn system",
+      "cluster": null,
+      "color": "#e13399",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Entity Graph"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e41"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "University of Groningen",
+      "label": "University of Groningen",
+      "cluster": null,
+      "color": "#5cdfa3",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Knowledge Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e22"
+        ]
+      }
+    },
+    {
+      "id": "University of Twente",
+      "label": "University of Twente",
+      "cluster": null,
+      "color": "#5149eb",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "Knowledge Graphs"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e23"
+        ]
+      }
+    },
+    {
+      "id": "Virtuoso",
+      "label": "Virtuoso",
+      "cluster": null,
+      "color": "#352ac6",
+      "degree": 1,
+      "indegree": 0,
+      "outdegree": 1,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "RDF Stores"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e44"
+        ]
+      }
+    },
+    {
+      "id": "W3C",
+      "label": "W3C",
+      "cluster": null,
+      "color": "#1edf99",
+      "degree": 2,
+      "indegree": 0,
+      "outdegree": 2,
+      "isRepresentative": false,
+      "radius": 22,
+      "neighbors": [
+        "OWL (Web Ontology Language)",
+        "RDF (Resource Description Framework)"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e17",
+          "e18"
+        ]
+      }
+    },
+    {
+      "id": "Wikipedia",
+      "label": "Wikipedia",
+      "cluster": null,
+      "color": "#d720b3",
+      "degree": 3,
+      "indegree": 3,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 24,
+      "neighbors": [
+        "DBpedia",
+        "Google Knowledge Graph",
+        "YAGO"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e21",
+          "e33",
+          "e63"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "WordNet",
+      "label": "WordNet",
+      "cluster": null,
+      "color": "#c9436f",
+      "degree": 1,
+      "indegree": 1,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 20,
+      "neighbors": [
+        "YAGO"
+      ],
+      "edgeIds": {
+        "incoming": [
+          "e64"
+        ],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "World Wide Web",
+      "label": "World Wide Web",
+      "cluster": null,
+      "color": "#dc6c9e",
+      "degree": 0,
+      "indegree": 0,
+      "outdegree": 0,
+      "isRepresentative": false,
+      "radius": 18,
+      "neighbors": [],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": []
+      }
+    },
+    {
+      "id": "YAGO",
+      "label": "YAGO",
+      "cluster": null,
+      "color": "#e55abc",
+      "degree": 4,
+      "indegree": 0,
+      "outdegree": 4,
+      "isRepresentative": false,
+      "radius": 26,
+      "neighbors": [
+        "Linked Open Data",
+        "Max Planck Institute for Informatics",
+        "Wikipedia",
+        "WordNet"
+      ],
+      "edgeIds": {
+        "incoming": [],
+        "outgoing": [
+          "e19",
+          "e37",
+          "e63",
+          "e64"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "Amit Singhal",
+      "target": "Google Knowledge Graph",
+      "predicate": "announced",
+      "cluster": null,
+      "color": "#ecb625",
+      "tooltip": "Amit Singhal —announced→ Google Knowledge Graph"
+    },
+    {
+      "id": "e1",
+      "source": "Pinterest",
+      "target": "Graph Neural Networks (GNNs)",
+      "predicate": "applied",
+      "cluster": null,
+      "color": "#75d34c",
+      "tooltip": "Pinterest —applied→ Graph Neural Networks (GNNs)"
+    },
+    {
+      "id": "e2",
+      "source": "Uber Eats",
+      "target": "Graph Neural Networks (GNNs)",
+      "predicate": "applied",
+      "cluster": null,
+      "color": "#75d34c",
+      "tooltip": "Uber Eats —applied→ Graph Neural Networks (GNNs)"
+    },
+    {
+      "id": "e3",
+      "source": "Knowledge Graphs",
+      "target": "Large Language Models (LLMs)",
+      "predicate": "are merging with",
+      "cluster": null,
+      "color": "#a139d7",
+      "tooltip": "Knowledge Graphs —are merging with→ Large Language Models (LLMs)"
+    },
+    {
+      "id": "e4",
+      "source": "M. Ross Quillian",
+      "target": "Carnegie Mellon University",
+      "predicate": "attended",
+      "cluster": null,
+      "color": "#e183bf",
+      "tooltip": "M. Ross Quillian —attended→ Carnegie Mellon University"
+    },
+    {
+      "id": "e5",
+      "source": "Edgar W. Schneider",
+      "target": "Knowledge Graphs",
+      "predicate": "coined term",
+      "cluster": null,
+      "color": "#aadd72",
+      "tooltip": "Edgar W. Schneider —coined term→ Knowledge Graphs"
+    },
+    {
+      "id": "e6",
+      "source": "M. Ross Quillian",
+      "target": "Allan M. Collins",
+      "predicate": "collaborated with",
+      "cluster": null,
+      "color": "#8813d2",
+      "tooltip": "M. Ross Quillian —collaborated with→ Allan M. Collins"
+    },
+    {
+      "id": "e7",
+      "source": "Conceptual Graphs",
+      "target": "existential graphs",
+      "predicate": "derived from",
+      "cluster": null,
+      "color": "#cb33d9",
+      "tooltip": "Conceptual Graphs —derived from→ existential graphs"
+    },
+    {
+      "id": "e8",
+      "source": "Airbnb",
+      "target": "Knowledge Graphs",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Airbnb —developed→ Knowledge Graphs"
+    },
+    {
+      "id": "e9",
+      "source": "Amazon",
+      "target": "Product Graph",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Amazon —developed→ Product Graph"
+    },
+    {
+      "id": "e10",
+      "source": "Facebook",
+      "target": "Entity Graph",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Facebook —developed→ Entity Graph"
+    },
+    {
+      "id": "e11",
+      "source": "Facebook",
+      "target": "Graph Search",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Facebook —developed→ Graph Search"
+    },
+    {
+      "id": "e12",
+      "source": "LinkedIn",
+      "target": "Economic Graph",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "LinkedIn —developed→ Economic Graph"
+    },
+    {
+      "id": "e13",
+      "source": "Semantic Networks",
+      "target": "M. Ross Quillian",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Semantic Networks —developed→ M. Ross Quillian"
+    },
+    {
+      "id": "e14",
+      "source": "Semantic Networks",
+      "target": "Richard H. Richens",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Semantic Networks —developed→ Richard H. Richens"
+    },
+    {
+      "id": "e15",
+      "source": "Uber Eats",
+      "target": "Food Knowledge Graph",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Uber Eats —developed→ Food Knowledge Graph"
+    },
+    {
+      "id": "e16",
+      "source": "Uber Engineering",
+      "target": "Food Knowledge Graph",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "Uber Engineering —developed→ Food Knowledge Graph"
+    },
+    {
+      "id": "e17",
+      "source": "W3C",
+      "target": "OWL (Web Ontology Language)",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "W3C —developed→ OWL (Web Ontology Language)"
+    },
+    {
+      "id": "e18",
+      "source": "W3C",
+      "target": "RDF (Resource Description Framework)",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "W3C —developed→ RDF (Resource Description Framework)"
+    },
+    {
+      "id": "e19",
+      "source": "YAGO",
+      "target": "Max Planck Institute for Informatics",
+      "predicate": "developed",
+      "cluster": null,
+      "color": "#df3baf",
+      "tooltip": "YAGO —developed→ Max Planck Institute for Informatics"
+    },
+    {
+      "id": "e20",
+      "source": "Richard H. Richens",
+      "target": "Cambridge Language Research Unit",
+      "predicate": "employed",
+      "cluster": null,
+      "color": "#8cee65",
+      "tooltip": "Richard H. Richens —employed→ Cambridge Language Research Unit"
+    },
+    {
+      "id": "e21",
+      "source": "DBpedia",
+      "target": "Wikipedia",
+      "predicate": "extracts structured content from",
+      "cluster": null,
+      "color": "#ec31a7",
+      "tooltip": "DBpedia —extracts structured content from→ Wikipedia"
+    },
+    {
+      "id": "e22",
+      "source": "University of Groningen",
+      "target": "Knowledge Graphs",
+      "predicate": "formally developed",
+      "cluster": null,
+      "color": "#bf2fd5",
+      "tooltip": "University of Groningen —formally developed→ Knowledge Graphs"
+    },
+    {
+      "id": "e23",
+      "source": "University of Twente",
+      "target": "Knowledge Graphs",
+      "predicate": "formally developed",
+      "cluster": null,
+      "color": "#bf2fd5",
+      "tooltip": "University of Twente —formally developed→ Knowledge Graphs"
+    },
+    {
+      "id": "e24",
+      "source": "Semantic Web",
+      "target": "Tim Berners-Lee",
+      "predicate": "guided vision of",
+      "cluster": null,
+      "color": "#afe84b",
+      "tooltip": "Semantic Web —guided vision of→ Tim Berners-Lee"
+    },
+    {
+      "id": "e25",
+      "source": "Knowledge Graphs",
+      "target": "Semantic Networks",
+      "predicate": "has intellectual roots in",
+      "cluster": null,
+      "color": "#4dcdbf",
+      "tooltip": "Knowledge Graphs —has intellectual roots in→ Semantic Networks"
+    },
+    {
+      "id": "e26",
+      "source": "Richard H. Richens",
+      "target": "Semantic Nets",
+      "predicate": "implemented",
+      "cluster": null,
+      "color": "#47e370",
+      "tooltip": "Richard H. Richens —implemented→ Semantic Nets"
+    },
+    {
+      "id": "e27",
+      "source": "DBpedia",
+      "target": "Chris Bizer",
+      "predicate": "initiated",
+      "cluster": null,
+      "color": "#704ccb",
+      "tooltip": "DBpedia —initiated→ Chris Bizer"
+    },
+    {
+      "id": "e28",
+      "source": "DBpedia",
+      "target": "Free University of Berlin",
+      "predicate": "initiated",
+      "cluster": null,
+      "color": "#704ccb",
+      "tooltip": "DBpedia —initiated→ Free University of Berlin"
+    },
+    {
+      "id": "e29",
+      "source": "DBpedia",
+      "target": "Leipzig University",
+      "predicate": "initiated",
+      "cluster": null,
+      "color": "#704ccb",
+      "tooltip": "DBpedia —initiated→ Leipzig University"
+    },
+    {
+      "id": "e30",
+      "source": "DBpedia",
+      "target": "Sören Auer",
+      "predicate": "initiated",
+      "cluster": null,
+      "color": "#704ccb",
+      "tooltip": "DBpedia —initiated→ Sören Auer"
+    },
+    {
+      "id": "e31",
+      "source": "Google Knowledge Graph",
+      "target": "CIA World Factbook",
+      "predicate": "integrated data from",
+      "cluster": null,
+      "color": "#51dda0",
+      "tooltip": "Google Knowledge Graph —integrated data from→ CIA World Factbook"
+    },
+    {
+      "id": "e32",
+      "source": "Google Knowledge Graph",
+      "target": "Freebase",
+      "predicate": "integrated data from",
+      "cluster": null,
+      "color": "#51dda0",
+      "tooltip": "Google Knowledge Graph —integrated data from→ Freebase"
+    },
+    {
+      "id": "e33",
+      "source": "Google Knowledge Graph",
+      "target": "Wikipedia",
+      "predicate": "integrated data from",
+      "cluster": null,
+      "color": "#51dda0",
+      "tooltip": "Google Knowledge Graph —integrated data from→ Wikipedia"
+    },
+    {
+      "id": "e34",
+      "source": "John F. Sowa",
+      "target": "Conceptual Graphs",
+      "predicate": "introduced",
+      "cluster": null,
+      "color": "#1dded3",
+      "tooltip": "John F. Sowa —introduced→ Conceptual Graphs"
+    },
+    {
+      "id": "e35",
+      "source": "DBpedia",
+      "target": "Linked Open Data",
+      "predicate": "is a foundational project of",
+      "cluster": null,
+      "color": "#e84673",
+      "tooltip": "DBpedia —is a foundational project of→ Linked Open Data"
+    },
+    {
+      "id": "e36",
+      "source": "Freebase",
+      "target": "Linked Open Data",
+      "predicate": "is a foundational project of",
+      "cluster": null,
+      "color": "#e84673",
+      "tooltip": "Freebase —is a foundational project of→ Linked Open Data"
+    },
+    {
+      "id": "e37",
+      "source": "YAGO",
+      "target": "Linked Open Data",
+      "predicate": "is a foundational project of",
+      "cluster": null,
+      "color": "#e84673",
+      "tooltip": "YAGO —is a foundational project of→ Linked Open Data"
+    },
+    {
+      "id": "e38",
+      "source": "Knowledge Graphs",
+      "target": "GraphRAG",
+      "predicate": "is a technique used with",
+      "cluster": null,
+      "color": "#cbdc7a",
+      "tooltip": "Knowledge Graphs —is a technique used with→ GraphRAG"
+    },
+    {
+      "id": "e39",
+      "source": "Knowledge Graphs",
+      "target": "Neuro-Symbolic AI",
+      "predicate": "is a technique used with",
+      "cluster": null,
+      "color": "#cbdc7a",
+      "tooltip": "Knowledge Graphs —is a technique used with→ Neuro-Symbolic AI"
+    },
+    {
+      "id": "e40",
+      "source": "GraphRAG",
+      "target": "Retrieval-Augmented Generation",
+      "predicate": "is a type of",
+      "cluster": null,
+      "color": "#62efb5",
+      "tooltip": "GraphRAG —is a type of→ Retrieval-Augmented Generation"
+    },
+    {
+      "id": "e41",
+      "source": "Entity Graph",
+      "target": "Unicorn system",
+      "predicate": "is also known as",
+      "cluster": null,
+      "color": "#cf8937",
+      "tooltip": "Entity Graph —is also known as→ Unicorn system"
+    },
+    {
+      "id": "e42",
+      "source": "GPT-4",
+      "target": "Large Language Models (LLMs)",
+      "predicate": "is an example of",
+      "cluster": null,
+      "color": "#ec5cbe",
+      "tooltip": "GPT-4 —is an example of→ Large Language Models (LLMs)"
+    },
+    {
+      "id": "e43",
+      "source": "Stardog",
+      "target": "RDF Stores",
+      "predicate": "is an example of",
+      "cluster": null,
+      "color": "#ec5cbe",
+      "tooltip": "Stardog —is an example of→ RDF Stores"
+    },
+    {
+      "id": "e44",
+      "source": "Virtuoso",
+      "target": "RDF Stores",
+      "predicate": "is an example of",
+      "cluster": null,
+      "color": "#ec5cbe",
+      "tooltip": "Virtuoso —is an example of→ RDF Stores"
+    },
+    {
+      "id": "e45",
+      "source": "Tree of Porphyry",
+      "target": "Aristotle",
+      "predicate": "is commented on by",
+      "cluster": null,
+      "color": "#2f6dc9",
+      "tooltip": "Tree of Porphyry —is commented on by→ Aristotle"
+    },
+    {
+      "id": "e46",
+      "source": "Food Knowledge Graph",
+      "target": "Uber Eats",
+      "predicate": "is improved by",
+      "cluster": null,
+      "color": "#9138d6",
+      "tooltip": "Food Knowledge Graph —is improved by→ Uber Eats"
+    },
+    {
+      "id": "e47",
+      "source": "existential graphs",
+      "target": "Charles Sanders Peirce",
+      "predicate": "is origin of",
+      "cluster": null,
+      "color": "#8c55d8",
+      "tooltip": "existential graphs —is origin of→ Charles Sanders Peirce"
+    },
+    {
+      "id": "e48",
+      "source": "Google Knowledge Graph",
+      "target": "Knowledge Panels",
+      "predicate": "is powered by",
+      "cluster": null,
+      "color": "#75ce1e",
+      "tooltip": "Google Knowledge Graph —is powered by→ Knowledge Panels"
+    },
+    {
+      "id": "e49",
+      "source": "GraphRAG",
+      "target": "Large Language Models (LLMs)",
+      "predicate": "is prompted by",
+      "cluster": null,
+      "color": "#e0ee3e",
+      "tooltip": "GraphRAG —is prompted by→ Large Language Models (LLMs)"
+    },
+    {
+      "id": "e50",
+      "source": "Google",
+      "target": "Google Knowledge Graph",
+      "predicate": "launched",
+      "cluster": null,
+      "color": "#65dcbe",
+      "tooltip": "Google —launched→ Google Knowledge Graph"
+    },
+    {
+      "id": "e51",
+      "source": "Metaweb",
+      "target": "Freebase",
+      "predicate": "launched",
+      "cluster": null,
+      "color": "#65dcbe",
+      "tooltip": "Metaweb —launched→ Freebase"
+    },
+    {
+      "id": "e52",
+      "source": "The Dutch School",
+      "target": "C. Hoede",
+      "predicate": "led",
+      "cluster": null,
+      "color": "#345ae7",
+      "tooltip": "The Dutch School —led→ C. Hoede"
+    },
+    {
+      "id": "e53",
+      "source": "The Dutch School",
+      "target": "F.N. Stokman",
+      "predicate": "led",
+      "cluster": null,
+      "color": "#345ae7",
+      "tooltip": "The Dutch School —led→ F.N. Stokman"
+    },
+    {
+      "id": "e54",
+      "source": "Product Graph",
+      "target": "Luna Dong",
+      "predicate": "led development of",
+      "cluster": null,
+      "color": "#ed9f42",
+      "tooltip": "Product Graph —led development of→ Luna Dong"
+    },
+    {
+      "id": "e55",
+      "source": "eBay",
+      "target": "Beam",
+      "predicate": "open-sourced",
+      "cluster": null,
+      "color": "#3127bf",
+      "tooltip": "eBay —open-sourced→ Beam"
+    },
+    {
+      "id": "e56",
+      "source": "RDF Stores",
+      "target": "Semantic Web",
+      "predicate": "originated from",
+      "cluster": null,
+      "color": "#e86bd5",
+      "tooltip": "RDF Stores —originated from→ Semantic Web"
+    },
+    {
+      "id": "e57",
+      "source": "Labeled Property Graphs (LPG)",
+      "target": "Neo4j",
+      "predicate": "popularized",
+      "cluster": null,
+      "color": "#7aea37",
+      "tooltip": "Labeled Property Graphs (LPG) —popularized→ Neo4j"
+    },
+    {
+      "id": "e58",
+      "source": "M. Ross Quillian",
+      "target": "Semantic Networks",
+      "predicate": "proposed",
+      "cluster": null,
+      "color": "#65de74",
+      "tooltip": "M. Ross Quillian —proposed→ Semantic Networks"
+    },
+    {
+      "id": "e59",
+      "source": "Allan M. Collins",
+      "target": "Retrieval Time from Semantic Memory",
+      "predicate": "published",
+      "cluster": null,
+      "color": "#9ce87a",
+      "tooltip": "Allan M. Collins —published→ Retrieval Time from Semantic Memory"
+    },
+    {
+      "id": "e60",
+      "source": "M. Ross Quillian",
+      "target": "Retrieval Time from Semantic Memory",
+      "predicate": "published",
+      "cluster": null,
+      "color": "#9ce87a",
+      "tooltip": "M. Ross Quillian —published→ Retrieval Time from Semantic Memory"
+    },
+    {
+      "id": "e61",
+      "source": "GraphRAG",
+      "target": "Knowledge Graphs",
+      "predicate": "retrieves facts from",
+      "cluster": null,
+      "color": "#d77577",
+      "tooltip": "GraphRAG —retrieves facts from→ Knowledge Graphs"
+    },
+    {
+      "id": "e62",
+      "source": "Cyc project",
+      "target": "Doug Lenat",
+      "predicate": "started",
+      "cluster": null,
+      "color": "#ae51df",
+      "tooltip": "Cyc project —started→ Doug Lenat"
+    },
+    {
+      "id": "e63",
+      "source": "YAGO",
+      "target": "Wikipedia",
+      "predicate": "unifies with",
+      "cluster": null,
+      "color": "#758ee0",
+      "tooltip": "YAGO —unifies with→ Wikipedia"
+    },
+    {
+      "id": "e64",
+      "source": "YAGO",
+      "target": "WordNet",
+      "predicate": "unifies with",
+      "cluster": null,
+      "color": "#758ee0",
+      "tooltip": "YAGO —unifies with→ WordNet"
+    },
+    {
+      "id": "e65",
+      "source": "Freebase",
+      "target": "Google Knowledge Graph",
+      "predicate": "used as seed data",
+      "cluster": null,
+      "color": "#d33920",
+      "tooltip": "Freebase —used as seed data→ Google Knowledge Graph"
+    },
+    {
+      "id": "e66",
+      "source": "Uber Engineering",
+      "target": "GraphSAGE",
+      "predicate": "utilized",
+      "cluster": null,
+      "color": "#abdb78",
+      "tooltip": "Uber Engineering —utilized→ GraphSAGE"
+    },
+    {
+      "id": "e67",
+      "source": "The Dutch School",
+      "target": "Knowledge Graphs",
+      "predicate": "was a project of",
+      "cluster": null,
+      "color": "#4385cf",
+      "tooltip": "The Dutch School —was a project of→ Knowledge Graphs"
+    },
+    {
+      "id": "e68",
+      "source": "Google",
+      "target": "Metaweb",
+      "predicate": "was acquired by",
+      "cluster": null,
+      "color": "#51a9d6",
+      "tooltip": "Google —was acquired by→ Metaweb"
+    },
+    {
+      "id": "e69",
+      "source": "Neuro-Symbolic AI",
+      "target": "Knowledge Graphs",
+      "predicate": "works in tandem with neural networks in",
+      "cluster": null,
+      "color": "#3324c3",
+      "tooltip": "Neuro-Symbolic AI —works in tandem with neural networks in→ Knowledge Graphs"
+    }
+  ],
+  "clusters": [],
+  "edgeClusters": [],
+  "topEntities": [
+    {
+      "label": "Knowledge Graphs",
+      "degree": 11,
+      "indegree": 7,
+      "outdegree": 4,
+      "cluster": null
+    },
+    {
+      "label": "Google Knowledge Graph",
+      "degree": 7,
+      "indegree": 3,
+      "outdegree": 4,
+      "cluster": null
+    },
+    {
+      "label": "DBpedia",
+      "degree": 6,
+      "indegree": 0,
+      "outdegree": 6,
+      "cluster": null
+    },
+    {
+      "label": "M. Ross Quillian",
+      "degree": 5,
+      "indegree": 1,
+      "outdegree": 4,
+      "cluster": null
+    },
+    {
+      "label": "Freebase",
+      "degree": 4,
+      "indegree": 2,
+      "outdegree": 2,
+      "cluster": null
+    },
+    {
+      "label": "GraphRAG",
+      "degree": 4,
+      "indegree": 1,
+      "outdegree": 3,
+      "cluster": null
+    },
+    {
+      "label": "Semantic Networks",
+      "degree": 4,
+      "indegree": 2,
+      "outdegree": 2,
+      "cluster": null
+    },
+    {
+      "label": "YAGO",
+      "degree": 4,
+      "indegree": 0,
+      "outdegree": 4,
+      "cluster": null
+    },
+    {
+      "label": "Food Knowledge Graph",
+      "degree": 3,
+      "indegree": 2,
+      "outdegree": 1,
+      "cluster": null
+    },
+    {
+      "label": "Large Language Models (LLMs)",
+      "degree": 3,
+      "indegree": 3,
+      "outdegree": 0,
+      "cluster": null
+    }
+  ],
+  "topRelations": [
+    {
+      "predicate": "developed",
+      "count": 12,
+      "cluster": null,
+      "color": "#df3baf"
+    },
+    {
+      "predicate": "initiated",
+      "count": 4,
+      "cluster": null,
+      "color": "#704ccb"
+    },
+    {
+      "predicate": "integrated data from",
+      "count": 3,
+      "cluster": null,
+      "color": "#51dda0"
+    },
+    {
+      "predicate": "is a foundational project of",
+      "count": 3,
+      "cluster": null,
+      "color": "#e84673"
+    },
+    {
+      "predicate": "is an example of",
+      "count": 3,
+      "cluster": null,
+      "color": "#ec5cbe"
+    },
+    {
+      "predicate": "applied",
+      "count": 2,
+      "cluster": null,
+      "color": "#75d34c"
+    },
+    {
+      "predicate": "formally developed",
+      "count": 2,
+      "cluster": null,
+      "color": "#bf2fd5"
+    },
+    {
+      "predicate": "is a technique used with",
+      "count": 2,
+      "cluster": null,
+      "color": "#cbdc7a"
+    },
+    {
+      "predicate": "launched",
+      "count": 2,
+      "cluster": null,
+      "color": "#65dcbe"
+    },
+    {
+      "predicate": "led",
+      "count": 2,
+      "cluster": null,
+      "color": "#345ae7"
+    }
+  ],
+  "stats": {
+    "entities": 82,
+    "relations": 70,
+    "relationTypes": 43,
+    "entityClusters": 0,
+    "edgeClusters": 0,
+    "isolatedEntities": 9,
+    "components": 22,
+    "averageDegree": 1.71,
+    "density": 0.011
+  },
+  "isolatedEntities": [
+    "artificial intelligence",
+    "cognitive psychology",
+    "database theory",
+    "Enterprise Knowledge Graphs",
+    "Knowledge Graph Embeddings",
+    "linguistics",
+    "SPARQL",
+    "Triplestores",
+    "World Wide Web"
+  ],
+  "components": [
+    {
+      "size": 21,
+      "members": [
+        "Airbnb",
+        "Allan M. Collins",
+        "C. Hoede",
+        "Cambridge Language Research Unit",
+        "Carnegie Mellon University",
+        "Edgar W. Schneider",
+        "F.N. Stokman",
+        "GPT-4",
+        "GraphRAG",
+        "Knowledge Graphs",
+        "Large Language Models (LLMs)",
+        "M. Ross Quillian",
+        "Neuro-Symbolic AI",
+        "Retrieval Time from Semantic Memory",
+        "Retrieval-Augmented Generation",
+        "Richard H. Richens",
+        "Semantic Nets",
+        "Semantic Networks",
+        "The Dutch School",
+        "University of Groningen",
+        "University of Twente"
+      ]
+    },
+    {
+      "size": 17,
+      "members": [
+        "Amit Singhal",
+        "Chris Bizer",
+        "CIA World Factbook",
+        "DBpedia",
+        "Free University of Berlin",
+        "Freebase",
+        "Google",
+        "Google Knowledge Graph",
+        "Knowledge Panels",
+        "Leipzig University",
+        "Linked Open Data",
+        "Max Planck Institute for Informatics",
+        "Metaweb",
+        "Sören Auer",
+        "Wikipedia",
+        "WordNet",
+        "YAGO"
+      ]
+    },
+    {
+      "size": 6,
+      "members": [
+        "Food Knowledge Graph",
+        "Graph Neural Networks (GNNs)",
+        "GraphSAGE",
+        "Pinterest",
+        "Uber Eats",
+        "Uber Engineering"
+      ]
+    },
+    {
+      "size": 5,
+      "members": [
+        "RDF Stores",
+        "Semantic Web",
+        "Stardog",
+        "Tim Berners-Lee",
+        "Virtuoso"
+      ]
+    },
+    {
+      "size": 4,
+      "members": [
+        "Charles Sanders Peirce",
+        "Conceptual Graphs",
+        "existential graphs",
+        "John F. Sowa"
+      ]
+    },
+    {
+      "size": 4,
+      "members": [
+        "Entity Graph",
+        "Facebook",
+        "Graph Search",
+        "Unicorn system"
+      ]
+    },
+    {
+      "size": 3,
+      "members": [
+        "Amazon",
+        "Luna Dong",
+        "Product Graph"
+      ]
+    },
+    {
+      "size": 3,
+      "members": [
+        "OWL (Web Ontology Language)",
+        "RDF (Resource Description Framework)",
+        "W3C"
+      ]
+    },
+    {
+      "size": 2,
+      "members": [
+        "Aristotle",
+        "Tree of Porphyry"
+      ]
+    },
+    {
+      "size": 2,
+      "members": [
+        "Beam",
+        "eBay"
+      ]
+    },
+    {
+      "size": 2,
+      "members": [
+        "Cyc project",
+        "Doug Lenat"
+      ]
+    },
+    {
+      "size": 2,
+      "members": [
+        "Economic Graph",
+        "LinkedIn"
+      ]
+    },
+    {
+      "size": 2,
+      "members": [
+        "Labeled Property Graphs (LPG)",
+        "Neo4j"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "Enterprise Knowledge Graphs"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "Knowledge Graph Embeddings"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "SPARQL"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "Triplestores"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "World Wide Web"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "artificial intelligence"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "cognitive psychology"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "database theory"
+      ]
+    },
+    {
+      "size": 1,
+      "members": [
+        "linguistics"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "Amit Singhal",
+      "predicate": "announced",
+      "target": "Google Knowledge Graph",
+      "edgeId": "e0",
+      "color": "#ecb625"
+    },
+    {
+      "source": "Pinterest",
+      "predicate": "applied",
+      "target": "Graph Neural Networks (GNNs)",
+      "edgeId": "e1",
+      "color": "#75d34c"
+    },
+    {
+      "source": "Uber Eats",
+      "predicate": "applied",
+      "target": "Graph Neural Networks (GNNs)",
+      "edgeId": "e2",
+      "color": "#75d34c"
+    },
+    {
+      "source": "Knowledge Graphs",
+      "predicate": "are merging with",
+      "target": "Large Language Models (LLMs)",
+      "edgeId": "e3",
+      "color": "#a139d7"
+    },
+    {
+      "source": "M. Ross Quillian",
+      "predicate": "attended",
+      "target": "Carnegie Mellon University",
+      "edgeId": "e4",
+      "color": "#e183bf"
+    },
+    {
+      "source": "Edgar W. Schneider",
+      "predicate": "coined term",
+      "target": "Knowledge Graphs",
+      "edgeId": "e5",
+      "color": "#aadd72"
+    },
+    {
+      "source": "M. Ross Quillian",
+      "predicate": "collaborated with",
+      "target": "Allan M. Collins",
+      "edgeId": "e6",
+      "color": "#8813d2"
+    },
+    {
+      "source": "Conceptual Graphs",
+      "predicate": "derived from",
+      "target": "existential graphs",
+      "edgeId": "e7",
+      "color": "#cb33d9"
+    },
+    {
+      "source": "Airbnb",
+      "predicate": "developed",
+      "target": "Knowledge Graphs",
+      "edgeId": "e8",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Amazon",
+      "predicate": "developed",
+      "target": "Product Graph",
+      "edgeId": "e9",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Facebook",
+      "predicate": "developed",
+      "target": "Entity Graph",
+      "edgeId": "e10",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Facebook",
+      "predicate": "developed",
+      "target": "Graph Search",
+      "edgeId": "e11",
+      "color": "#df3baf"
+    },
+    {
+      "source": "LinkedIn",
+      "predicate": "developed",
+      "target": "Economic Graph",
+      "edgeId": "e12",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Semantic Networks",
+      "predicate": "developed",
+      "target": "M. Ross Quillian",
+      "edgeId": "e13",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Semantic Networks",
+      "predicate": "developed",
+      "target": "Richard H. Richens",
+      "edgeId": "e14",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Uber Eats",
+      "predicate": "developed",
+      "target": "Food Knowledge Graph",
+      "edgeId": "e15",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Uber Engineering",
+      "predicate": "developed",
+      "target": "Food Knowledge Graph",
+      "edgeId": "e16",
+      "color": "#df3baf"
+    },
+    {
+      "source": "W3C",
+      "predicate": "developed",
+      "target": "OWL (Web Ontology Language)",
+      "edgeId": "e17",
+      "color": "#df3baf"
+    },
+    {
+      "source": "W3C",
+      "predicate": "developed",
+      "target": "RDF (Resource Description Framework)",
+      "edgeId": "e18",
+      "color": "#df3baf"
+    },
+    {
+      "source": "YAGO",
+      "predicate": "developed",
+      "target": "Max Planck Institute for Informatics",
+      "edgeId": "e19",
+      "color": "#df3baf"
+    },
+    {
+      "source": "Richard H. Richens",
+      "predicate": "employed",
+      "target": "Cambridge Language Research Unit",
+      "edgeId": "e20",
+      "color": "#8cee65"
+    },
+    {
+      "source": "DBpedia",
+      "predicate": "extracts structured content from",
+      "target": "Wikipedia",
+      "edgeId": "e21",
+      "color": "#ec31a7"
+    },
+    {
+      "source": "University of Groningen",
+      "predicate": "formally developed",
+      "target": "Knowledge Graphs",
+      "edgeId": "e22",
+      "color": "#bf2fd5"
+    },
+    {
+      "source": "University of Twente",
+      "predicate": "formally developed",
+      "target": "Knowledge Graphs",
+      "edgeId": "e23",
+      "color": "#bf2fd5"
+    },
+    {
+      "source": "Semantic Web",
+      "predicate": "guided vision of",
+      "target": "Tim Berners-Lee",
+      "edgeId": "e24",
+      "color": "#afe84b"
+    },
+    {
+      "source": "Knowledge Graphs",
+      "predicate": "has intellectual roots in",
+      "target": "Semantic Networks",
+      "edgeId": "e25",
+      "color": "#4dcdbf"
+    },
+    {
+      "source": "Richard H. Richens",
+      "predicate": "implemented",
+      "target": "Semantic Nets",
+      "edgeId": "e26",
+      "color": "#47e370"
+    },
+    {
+      "source": "DBpedia",
+      "predicate": "initiated",
+      "target": "Chris Bizer",
+      "edgeId": "e27",
+      "color": "#704ccb"
+    },
+    {
+      "source": "DBpedia",
+      "predicate": "initiated",
+      "target": "Free University of Berlin",
+      "edgeId": "e28",
+      "color": "#704ccb"
+    },
+    {
+      "source": "DBpedia",
+      "predicate": "initiated",
+      "target": "Leipzig University",
+      "edgeId": "e29",
+      "color": "#704ccb"
+    },
+    {
+      "source": "DBpedia",
+      "predicate": "initiated",
+      "target": "Sören Auer",
+      "edgeId": "e30",
+      "color": "#704ccb"
+    },
+    {
+      "source": "Google Knowledge Graph",
+      "predicate": "integrated data from",
+      "target": "CIA World Factbook",
+      "edgeId": "e31",
+      "color": "#51dda0"
+    },
+    {
+      "source": "Google Knowledge Graph",
+      "predicate": "integrated data from",
+      "target": "Freebase",
+      "edgeId": "e32",
+      "color": "#51dda0"
+    },
+    {
+      "source": "Google Knowledge Graph",
+      "predicate": "integrated data from",
+      "target": "Wikipedia",
+      "edgeId": "e33",
+      "color": "#51dda0"
+    },
+    {
+      "source": "John F. Sowa",
+      "predicate": "introduced",
+      "target": "Conceptual Graphs",
+      "edgeId": "e34",
+      "color": "#1dded3"
+    },
+    {
+      "source": "DBpedia",
+      "predicate": "is a foundational project of",
+      "target": "Linked Open Data",
+      "edgeId": "e35",
+      "color": "#e84673"
+    },
+    {
+      "source": "Freebase",
+      "predicate": "is a foundational project of",
+      "target": "Linked Open Data",
+      "edgeId": "e36",
+      "color": "#e84673"
+    },
+    {
+      "source": "YAGO",
+      "predicate": "is a foundational project of",
+      "target": "Linked Open Data",
+      "edgeId": "e37",
+      "color": "#e84673"
+    },
+    {
+      "source": "Knowledge Graphs",
+      "predicate": "is a technique used with",
+      "target": "GraphRAG",
+      "edgeId": "e38",
+      "color": "#cbdc7a"
+    },
+    {
+      "source": "Knowledge Graphs",
+      "predicate": "is a technique used with",
+      "target": "Neuro-Symbolic AI",
+      "edgeId": "e39",
+      "color": "#cbdc7a"
+    },
+    {
+      "source": "GraphRAG",
+      "predicate": "is a type of",
+      "target": "Retrieval-Augmented Generation",
+      "edgeId": "e40",
+      "color": "#62efb5"
+    },
+    {
+      "source": "Entity Graph",
+      "predicate": "is also known as",
+      "target": "Unicorn system",
+      "edgeId": "e41",
+      "color": "#cf8937"
+    },
+    {
+      "source": "GPT-4",
+      "predicate": "is an example of",
+      "target": "Large Language Models (LLMs)",
+      "edgeId": "e42",
+      "color": "#ec5cbe"
+    },
+    {
+      "source": "Stardog",
+      "predicate": "is an example of",
+      "target": "RDF Stores",
+      "edgeId": "e43",
+      "color": "#ec5cbe"
+    },
+    {
+      "source": "Virtuoso",
+      "predicate": "is an example of",
+      "target": "RDF Stores",
+      "edgeId": "e44",
+      "color": "#ec5cbe"
+    },
+    {
+      "source": "Tree of Porphyry",
+      "predicate": "is commented on by",
+      "target": "Aristotle",
+      "edgeId": "e45",
+      "color": "#2f6dc9"
+    },
+    {
+      "source": "Food Knowledge Graph",
+      "predicate": "is improved by",
+      "target": "Uber Eats",
+      "edgeId": "e46",
+      "color": "#9138d6"
+    },
+    {
+      "source": "existential graphs",
+      "predicate": "is origin of",
+      "target": "Charles Sanders Peirce",
+      "edgeId": "e47",
+      "color": "#8c55d8"
+    },
+    {
+      "source": "Google Knowledge Graph",
+      "predicate": "is powered by",
+      "target": "Knowledge Panels",
+      "edgeId": "e48",
+      "color": "#75ce1e"
+    },
+    {
+      "source": "GraphRAG",
+      "predicate": "is prompted by",
+      "target": "Large Language Models (LLMs)",
+      "edgeId": "e49",
+      "color": "#e0ee3e"
+    },
+    {
+      "source": "Google",
+      "predicate": "launched",
+      "target": "Google Knowledge Graph",
+      "edgeId": "e50",
+      "color": "#65dcbe"
+    },
+    {
+      "source": "Metaweb",
+      "predicate": "launched",
+      "target": "Freebase",
+      "edgeId": "e51",
+      "color": "#65dcbe"
+    },
+    {
+      "source": "The Dutch School",
+      "predicate": "led",
+      "target": "C. Hoede",
+      "edgeId": "e52",
+      "color": "#345ae7"
+    },
+    {
+      "source": "The Dutch School",
+      "predicate": "led",
+      "target": "F.N. Stokman",
+      "edgeId": "e53",
+      "color": "#345ae7"
+    },
+    {
+      "source": "Product Graph",
+      "predicate": "led development of",
+      "target": "Luna Dong",
+      "edgeId": "e54",
+      "color": "#ed9f42"
+    },
+    {
+      "source": "eBay",
+      "predicate": "open-sourced",
+      "target": "Beam",
+      "edgeId": "e55",
+      "color": "#3127bf"
+    },
+    {
+      "source": "RDF Stores",
+      "predicate": "originated from",
+      "target": "Semantic Web",
+      "edgeId": "e56",
+      "color": "#e86bd5"
+    },
+    {
+      "source": "Labeled Property Graphs (LPG)",
+      "predicate": "popularized",
+      "target": "Neo4j",
+      "edgeId": "e57",
+      "color": "#7aea37"
+    },
+    {
+      "source": "M. Ross Quillian",
+      "predicate": "proposed",
+      "target": "Semantic Networks",
+      "edgeId": "e58",
+      "color": "#65de74"
+    },
+    {
+      "source": "Allan M. Collins",
+      "predicate": "published",
+      "target": "Retrieval Time from Semantic Memory",
+      "edgeId": "e59",
+      "color": "#9ce87a"
+    },
+    {
+      "source": "M. Ross Quillian",
+      "predicate": "published",
+      "target": "Retrieval Time from Semantic Memory",
+      "edgeId": "e60",
+      "color": "#9ce87a"
+    },
+    {
+      "source": "GraphRAG",
+      "predicate": "retrieves facts from",
+      "target": "Knowledge Graphs",
+      "edgeId": "e61",
+      "color": "#d77577"
+    },
+    {
+      "source": "Cyc project",
+      "predicate": "started",
+      "target": "Doug Lenat",
+      "edgeId": "e62",
+      "color": "#ae51df"
+    },
+    {
+      "source": "YAGO",
+      "predicate": "unifies with",
+      "target": "Wikipedia",
+      "edgeId": "e63",
+      "color": "#758ee0"
+    },
+    {
+      "source": "YAGO",
+      "predicate": "unifies with",
+      "target": "WordNet",
+      "edgeId": "e64",
+      "color": "#758ee0"
+    },
+    {
+      "source": "Freebase",
+      "predicate": "used as seed data",
+      "target": "Google Knowledge Graph",
+      "edgeId": "e65",
+      "color": "#d33920"
+    },
+    {
+      "source": "Uber Engineering",
+      "predicate": "utilized",
+      "target": "GraphSAGE",
+      "edgeId": "e66",
+      "color": "#abdb78"
+    },
+    {
+      "source": "The Dutch School",
+      "predicate": "was a project of",
+      "target": "Knowledge Graphs",
+      "edgeId": "e67",
+      "color": "#4385cf"
+    },
+    {
+      "source": "Google",
+      "predicate": "was acquired by",
+      "target": "Metaweb",
+      "edgeId": "e68",
+      "color": "#51a9d6"
+    },
+    {
+      "source": "Neuro-Symbolic AI",
+      "predicate": "works in tandem with neural networks in",
+      "target": "Knowledge Graphs",
+      "edgeId": "e69",
+      "color": "#3324c3"
+    }
+  ]
+}
+    </script>
+    <script>
+        (function () {
+            console.log('[iframe] Script starting - mobile check:', window.innerWidth <= 768);
+            console.log('[iframe] User agent:', navigator.userAgent);
+
+            const dataElement = document.getElementById('viz-data');
+            if (!dataElement) {
+                console.error('[iframe] viz-data element not found!');
+                return;
+            }
+
+            let vizData;
+            try {
+                vizData = JSON.parse(dataElement.textContent);
+                console.log('[iframe] Data parsed successfully:', vizData.nodes?.length, 'nodes');
+            } catch (e) {
+                console.error('[iframe] Failed to parse data:', e);
+                return;
+            }
+
+            const state = {
+                activeElement: null,
+                focusCluster: null,
+                focusPredicate: null,
+                searchTerm: '',
+                sidebarCollapsed: false,
+                sidebarDisabled: false
+            };
+
+            const nodeById = Object.fromEntries(vizData.nodes.map(node => [node.id, node]));
+            const edgeById = Object.fromEntries(vizData.edges.map(edge => [edge.id, edge]));
+            const clusterById = Object.fromEntries(vizData.clusters.map(cluster => [cluster.id, cluster]));
+            const edgesByPredicate = {};
+            vizData.edges.forEach(edge => {
+                if (!edgesByPredicate[edge.predicate]) {
+                    edgesByPredicate[edge.predicate] = [];
+                }
+                edgesByPredicate[edge.predicate].push(edge.id);
+            });
+
+            const nodesByCluster = {};
+            vizData.clusters.forEach(cluster => {
+                cluster.members.forEach(member => {
+                    if (!nodesByCluster[cluster.id]) {
+                        nodesByCluster[cluster.id] = new Set();
+                    }
+                    nodesByCluster[cluster.id].add(member);
+                });
+            });
+
+            function renderStats() {
+                const grid = document.getElementById('statsGrid');
+                const stats = vizData.stats;
+                const entries = [
+                    { label: 'Entities', value: stats.entities },
+                    { label: 'Relations', value: stats.relations },
+                    { label: 'Relation types', value: stats.relationTypes },
+                    { label: 'Entity clusters', value: stats.entityClusters },
+                    { label: 'Edge clusters', value: stats.edgeClusters },
+                    { label: 'Isolated entities', value: stats.isolatedEntities },
+                    { label: 'Components', value: stats.components },
+                    { label: 'Average degree', value: stats.averageDegree }
+                ];
+                grid.innerHTML = entries
+                    .map(entry => `
+                        <div class="stat-card">
+                            <div class="stat-value">${entry.value}</div>
+                            <div>${entry.label}</div>
+                        </div>
+                    `)
+                    .join('');
+            }
+
+            function renderTopLists() {
+                const topEntitiesContainer = document.getElementById('topEntities');
+                const topRelationsContainer = document.getElementById('topRelations');
+
+                const entityItems = vizData.topEntities.map(item => {
+                    const clusterLabel = item.cluster ? `${item.cluster}` : 'Unclustered';
+                    return `
+                        <div class="list-item">
+                            <div>
+                                <strong>${item.label}</strong>
+                                <div class="meta">Cluster: ${clusterLabel}</div>
+                            </div>
+                            <div>${item.degree}</div>
+                        </div>
+                    `;
+                });
+                topEntitiesContainer.innerHTML = entityItems.join('') || '<div class="meta">No entities</div>';
+
+                const relationItems = vizData.topRelations.map(item => `
+                    <div class="list-item relation-item" data-predicate="${item.predicate}">
+                        <div>
+                            <strong>${item.predicate}</strong>
+                            <div class="meta">${item.count} relations</div>
+                        </div>
+                        <div class="pill" style="background: ${item.color}1a; border: 1px solid ${item.color};">${item.count}</div>
+                    </div>
+                `);
+                topRelationsContainer.innerHTML = relationItems.join('') || '<div class="meta">No relations</div>';
+            }
+
+            function renderClusters() {
+                const container = document.getElementById('clusterList');
+                if (!vizData.clusters.length) {
+                    container.innerHTML = '<div class="meta">No cluster information provided.</div>';
+                    return;
+                }
+                container.innerHTML = vizData.clusters
+                    .map(cluster => `
+                        <button class="list-item cluster-item" data-cluster="${cluster.id}" style="border-left-color: ${cluster.color};">
+                            <div>
+                                <strong>${cluster.label}</strong>
+                                <div class="meta">${cluster.size} members</div>
+                            </div>
+                            <span class="legend-swatch" style="background: ${cluster.color};"></span>
+                        </button>
+                    `)
+                    .join('');
+            }
+
+            // function renderRelationsTable() {
+            //     const tbody = document.getElementById('relationsTable');
+            //     tbody.innerHTML = vizData.relations
+            //         .map(rel => `
+            //             <tr data-edge="${rel.edgeId}">
+            //                 <td>${rel.source}</td>
+            //                 <td><span class="pill" style="border: 1px solid ${rel.color}; background: ${rel.color}1a;">${rel.predicate}</span></td>
+            //                 <td>${rel.target}</td>
+            //             </tr>
+            //         `)
+            //         .join('');
+            // }
+
+            // function renderInsights() {
+            //     const insights = document.getElementById('insightsContent');
+            //     const clusters = vizData.clusters
+            //         .map(cluster => `
+            //             <div class="list-item" style="border-left: 4px solid ${cluster.color};">
+            //                 <div>
+            //                     <strong>${cluster.label}</strong>
+            //                     <div class="meta">Members: ${cluster.members.join(', ')}</div>
+            //                 </div>
+            //                 <div>${cluster.size}</div>
+            //             </div>
+            //         `)
+            //         .join('');
+
+            //     const components = vizData.components
+            //         .map((component, index) => `
+            //             <div class="list-item">
+            //                 <div>
+            //                     <strong>Component ${index + 1}</strong>
+            //                     <div class="meta">${component.members.join(', ')}</div>
+            //                 </div>
+            //                 <div>${component.size}</div>
+            //             </div>
+            //         `)
+            //         .join('');
+
+            //     const isolates = vizData.isolatedEntities.length
+            //         ? vizData.isolatedEntities.join(', ')
+            //         : 'None';
+
+            //     insights.innerHTML = `
+            //         <div class="section">
+            //             <h2>Clusters</h2>
+            //             <div class="list">${clusters || '<div class="meta">No clusters</div>'}</div>
+            //         </div>
+            //         <div class="section">
+            //             <h2>Connected components</h2>
+            //             <div class="list">${components || '<div class="meta">Single connected component</div>'}</div>
+            //         </div>
+            //         <div class="section">
+            //             <h2>Isolated entities</h2>
+            //             <div class="meta">${isolates}</div>
+            //         </div>
+            //     `;
+            // }
+
+            function setActiveElement(element) {
+                state.activeElement = element;
+                renderSelectionDetails();
+                updateHighlights();
+
+                // Notify parent about selection change
+                if (window.parent !== window && state.sidebarDisabled) {
+                    const selection = element ? {
+                        type: element.type,
+                        id: element.id,
+                        ...getElementDetails(element)
+                    } : null;
+                    window.parent.postMessage({
+                        type: 'selectionChanged',
+                        selection: selection
+                    }, '*');
+                }
+            }
+
+            function getElementDetails(element) {
+                if (!element) return {};
+
+                if (element.type === 'node') {
+                    const node = nodeById[element.id];
+                    return {
+                        label: node.label,
+                        cluster: node.cluster,
+                        degree: node.degree,
+                        indegree: node.indegree,
+                        outdegree: node.outdegree,
+                        neighbors: node.neighbors
+                    };
+                } else if (element.type === 'edge') {
+                    const edge = edgeById[element.id];
+                    return {
+                        source: edge.source,
+                        target: edge.target,
+                        predicate: edge.predicate,
+                        cluster: edge.cluster
+                    };
+                }
+                return {};
+            }
+
+            function clearActiveElement() {
+                state.activeElement = null;
+                renderSelectionDetails();
+                updateHighlights();
+            }
+
+            function renderSelectionDetails() {
+                const panel = document.getElementById('selectionDetails');
+                const active = state.activeElement;
+                if (!active) {
+                    panel.innerHTML = 'Click a node or relation in the network to inspect details.';
+                    return;
+                }
+
+                if (active.type === 'node') {
+                    const node = nodeById[active.id];
+                    const cluster = node.cluster ? `Cluster: ${node.cluster}` : 'Unclustered';
+                    const neighbors = node.neighbors.length ? node.neighbors.join(', ') : 'None';
+                    panel.innerHTML = `
+                        <h3>${node.label}</h3>
+                        <ul>
+                            <li>${cluster}</li>
+                            <li>Total degree: ${node.degree}</li>
+                            <li>Outgoing: ${node.outdegree}</li>
+                            <li>Incoming: ${node.indegree}</li>
+                            <li>Neighbors: ${neighbors}</li>
+                        </ul>
+                    `;
+                } else if (active.type === 'edge') {
+                    const edge = edgeById[active.id];
+                    const cluster = edge.cluster ? `Cluster: ${edge.cluster}` : 'Unclustered';
+                    panel.innerHTML = `
+                        <h3>${edge.source} → ${edge.target}</h3>
+                        <ul>
+                            <li>Relation: ${edge.predicate}</li>
+                            <li>${cluster}</li>
+                        </ul>
+                    `;
+                }
+            }
+
+            function toggleClusterFocus(clusterId) {
+                if (state.focusCluster === clusterId) {
+                    state.focusCluster = null;
+                } else {
+                    state.focusCluster = clusterId;
+                }
+                updateActiveButtons();
+                updateHighlights();
+            }
+
+            function togglePredicateFocus(predicate) {
+                if (state.focusPredicate === predicate) {
+                    state.focusPredicate = null;
+                } else {
+                    state.focusPredicate = predicate;
+                }
+                updateActiveButtons();
+                updateHighlights();
+            }
+
+            function updateActiveButtons() {
+                document.querySelectorAll('.cluster-item').forEach(item => {
+                    const clusterId = item.getAttribute('data-cluster');
+                    item.classList.toggle('active', state.focusCluster === clusterId);
+                });
+                document.querySelectorAll('.relation-item').forEach(item => {
+                    const predicate = item.getAttribute('data-predicate');
+                    item.classList.toggle('active', state.focusPredicate === predicate);
+                });
+            }
+
+            // Canvas-based network visualization
+            let canvas, ctx, transform, simulation;
+            let nodes, edges;
+            let highlightedNodes = new Set();
+            let highlightedEdges = new Set();
+            let isFiltering = false;
+
+            function createNetwork() {
+                console.log('[iframe] createNetwork starting...');
+
+                if (typeof d3 === 'undefined') {
+                    console.error('[iframe] D3.js not loaded!');
+                    return;
+                }
+                console.log('[iframe] D3.js version:', d3.version);
+
+                canvas = document.getElementById('networkCanvas');
+                if (!canvas) {
+                    console.error('[iframe] Canvas element not found!');
+                    return;
+                }
+
+                ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error('[iframe] Canvas context not available!');
+                    return;
+                }
+
+                // Force a layout recalculation to ensure proper sizing
+                canvas.offsetHeight; // Trigger reflow
+
+                // Set canvas size with device pixel ratio for crisp rendering
+                const rect = canvas.getBoundingClientRect();
+                console.log('[iframe] Canvas rect:', rect.width, 'x', rect.height);
+
+                // Ensure minimum size for mobile/narrow viewports
+                const width = Math.max(rect.width, 320);
+                const height = Math.max(rect.height, 200);
+
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                ctx.scale(dpr, dpr);
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+
+                // Initialize transform for zooming/panning
+                transform = d3.zoomIdentity;
+
+                // Clone data for simulation
+                nodes = vizData.nodes.map(node => ({ ...node }));
+                edges = vizData.edges.map(edge => ({ ...edge }));
+
+                // Create D3 force simulation
+                simulation = d3
+                    .forceSimulation(nodes)
+                    .force('link', d3.forceLink(edges).id(d => d.id).distance(120).strength(0.3))
+                    .force('charge', d3.forceManyBody().strength(-280))
+                    .force('center', d3.forceCenter(width / 2, height / 2))
+                    .force('collision', d3.forceCollide().radius(d => d.radius + 12));
+
+                // Set up zoom behavior
+                const zoom = d3.zoom()
+                    .scaleExtent([0.25, 3])
+                    .on('zoom', (event) => {
+                        transform = event.transform;
+                        render();
+                    });
+
+                d3.select(canvas).call(zoom);
+
+                // Mouse interaction handling
+                let draggedNode = null;
+                let mouseX, mouseY;
+
+                function getMousePos(event) {
+                    const rect = canvas.getBoundingClientRect();
+                    return {
+                        x: (event.clientX - rect.left - transform.x) / transform.k,
+                        y: (event.clientY - rect.top - transform.y) / transform.k
+                    };
+                }
+
+                function findNode(x, y) {
+                    for (let i = nodes.length - 1; i >= 0; i--) {
+                        const node = nodes[i];
+                        const dx = x - node.x;
+                        const dy = y - node.y;
+                        if (dx * dx + dy * dy < node.radius * node.radius) {
+                            return node;
+                        }
+                    }
+                    return null;
+                }
+
+                function findEdge(x, y) {
+                    for (let i = edges.length - 1; i >= 0; i--) {
+                        const edge = edges[i];
+                        if (!edge.source || !edge.target) continue;
+
+                        // Check if click is near the edge line
+                        const dx = edge.target.x - edge.source.x;
+                        const dy = edge.target.y - edge.source.y;
+                        const length = Math.sqrt(dx * dx + dy * dy);
+                        if (length === 0) continue;
+
+                        const dot = ((x - edge.source.x) * dx + (y - edge.source.y) * dy) / (length * length);
+                        if (dot < 0 || dot > 1) continue;
+
+                        const projX = edge.source.x + dot * dx;
+                        const projY = edge.source.y + dot * dy;
+                        const distSq = (x - projX) * (x - projX) + (y - projY) * (y - projY);
+
+                        if (distSq < 25) { // 5px threshold
+                            return edge;
+                        }
+                    }
+                    return null;
+                }
+
+                canvas.addEventListener('mousedown', (event) => {
+                    const pos = getMousePos(event);
+                    mouseX = pos.x;
+                    mouseY = pos.y;
+                    draggedNode = findNode(pos.x, pos.y);
+
+                    if (draggedNode) {
+                        simulation.alphaTarget(0.3).restart();
+                        draggedNode.fx = draggedNode.x;
+                        draggedNode.fy = draggedNode.y;
+                        canvas.style.cursor = 'grabbing';
+                    }
+                });
+
+                canvas.addEventListener('mousemove', (event) => {
+                    const pos = getMousePos(event);
+
+                    if (draggedNode) {
+                        draggedNode.fx = pos.x;
+                        draggedNode.fy = pos.y;
+                    } else {
+                        // Update cursor based on what's under mouse
+                        const node = findNode(pos.x, pos.y);
+                        const edge = findEdge(pos.x, pos.y);
+                        canvas.style.cursor = (node || edge) ? 'pointer' : 'grab';
+                    }
+                });
+
+                canvas.addEventListener('mouseup', (event) => {
+                    if (draggedNode) {
+                        simulation.alphaTarget(0);
+                        draggedNode.fx = null;
+                        draggedNode.fy = null;
+                        draggedNode = null;
+                        canvas.style.cursor = 'grab';
+                    }
+                });
+
+                canvas.addEventListener('click', (event) => {
+                    const pos = getMousePos(event);
+                    const node = findNode(pos.x, pos.y);
+                    const edge = findEdge(pos.x, pos.y);
+
+                    if (node) {
+                        setActiveElement({ type: 'node', id: node.id });
+                    } else if (edge) {
+                        setActiveElement({ type: 'edge', id: edge.id });
+                    } else {
+                        clearActiveElement();
+                    }
+                });
+
+                // Animation loop
+                simulation.on('tick', () => {
+                    render();
+                });
+
+                // Handle window resize
+                window.addEventListener('resize', resizeCanvas);
+
+                render();
+            }
+
+            function resizeCanvas() {
+                if (!canvas || !ctx) return;
+
+                // Force canvas to take full container size
+                if (state.sidebarDisabled) {
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                }
+
+                const rect = canvas.getBoundingClientRect();
+                console.log('Canvas resize - rect:', rect.width, 'x', rect.height);
+
+                // Ensure minimum size for mobile
+                const width = Math.max(rect.width, 320);
+                const height = Math.max(rect.height, 200);
+
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                ctx.scale(dpr, dpr);
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+
+                // Update simulation center
+                if (simulation) {
+                    simulation.force('center', d3.forceCenter(width / 2, height / 2));
+                    simulation.alpha(0.3).restart();
+                }
+
+                render();
+            }
+
+
+            function render() {
+                if (!ctx || !canvas) return;
+
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width / (window.devicePixelRatio || 1),
+                             canvas.height / (window.devicePixelRatio || 1));
+
+                // Apply transform
+                ctx.save();
+                ctx.translate(transform.x, transform.y);
+                ctx.scale(transform.k, transform.k);
+
+                // Set text properties
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '12px Inter, system-ui, sans-serif';
+
+                // Draw edges first
+                edges.forEach(edge => {
+                    if (!edge.source || !edge.target) return;
+
+                    const isHighlighted = highlightedEdges.has(edge.id);
+                    const isDimmed = isFiltering && !isHighlighted;
+
+                    // Calculate edge endpoints accounting for node radius
+                    const dx = edge.target.x - edge.source.x;
+                    const dy = edge.target.y - edge.source.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const normX = dx / distance;
+                    const normY = dy / distance;
+
+                    const sourcePadding = edge.source.radius + 2;
+                    const targetPadding = edge.target.radius + 8;
+                    const sourceX = edge.source.x + normX * sourcePadding;
+                    const sourceY = edge.source.y + normY * sourcePadding;
+                    const targetX = edge.target.x - normX * targetPadding;
+                    const targetY = edge.target.y - normY * targetPadding;
+
+                    // Draw edge line
+                    ctx.strokeStyle = edge.color;
+                    ctx.globalAlpha = isDimmed ? 0.15 : (isHighlighted ? 1.0 : 0.55);
+                    ctx.lineWidth = 1.4;
+                    ctx.beginPath();
+                    ctx.moveTo(sourceX, sourceY);
+                    ctx.lineTo(targetX, targetY);
+                    ctx.stroke();
+
+                    // Draw arrowhead
+                    const arrowLength = 10;
+                    const arrowWidth = 5;
+                    const angle = Math.atan2(dy, dx);
+
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.beginPath();
+                    ctx.moveTo(targetX, targetY);
+                    ctx.lineTo(
+                        targetX - arrowLength * Math.cos(angle - arrowWidth * Math.PI / 180),
+                        targetY - arrowLength * Math.sin(angle - arrowWidth * Math.PI / 180)
+                    );
+                    ctx.lineTo(
+                        targetX - arrowLength * Math.cos(angle + arrowWidth * Math.PI / 180),
+                        targetY - arrowLength * Math.sin(angle + arrowWidth * Math.PI / 180)
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Draw edge label if zoom level is appropriate
+                    if (transform.k > 0.8) {
+                        const labelX = (sourceX + targetX) / 2;
+                        const labelY = (sourceY + targetY) / 2;
+
+                        ctx.fillStyle = isDimmed ? 'rgba(30, 41, 59, 0.15)' : 'rgba(30, 41, 59, 0.8)';
+                        ctx.font = '10px Inter, system-ui, sans-serif';
+                        ctx.fillText(edge.predicate, labelX, labelY);
+                    }
+                });
+
+                // Draw nodes
+                nodes.forEach(node => {
+                    const isHighlighted = highlightedNodes.has(node.id);
+                    const isDimmed = isFiltering && !isHighlighted;
+
+                    // Draw node circle
+                    ctx.fillStyle = node.color;
+                    ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                    ctx.fill();
+
+                    // Draw node border
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = isHighlighted ? 2.4 : 1.2;
+                    ctx.stroke();
+
+                    // Draw node label
+                    if (transform.k > 0.5) {
+                        ctx.fillStyle = isDimmed ? 'rgba(15, 23, 42, 0.15)' : '#0f172a';
+                        ctx.font = '12px Inter, system-ui, sans-serif';
+                        ctx.fillText(node.label, node.x, node.y + node.radius + 14);
+                    }
+                });
+
+                ctx.restore();
+                ctx.globalAlpha = 1.0;
+            }
+
+            function updateHighlights() {
+                // Clear previous highlights
+                highlightedNodes.clear();
+                highlightedEdges.clear();
+                isFiltering = false;
+
+                const addNode = id => {
+                    if (id) {
+                        highlightedNodes.add(id);
+                    }
+                };
+                const addEdge = id => {
+                    if (id) {
+                        highlightedEdges.add(id);
+                    }
+                };
+
+                if (state.activeElement) {
+                    isFiltering = true;
+                    if (state.activeElement.type === 'node') {
+                        const node = nodeById[state.activeElement.id];
+                        addNode(node.id);
+                        node.neighbors.forEach(addNode);
+                        (node.edgeIds.outgoing || []).forEach(addEdge);
+                        (node.edgeIds.incoming || []).forEach(addEdge);
+                    } else if (state.activeElement.type === 'edge') {
+                        const edge = edgeById[state.activeElement.id];
+                        addEdge(edge.id);
+                        addNode(edge.source);
+                        addNode(edge.target);
+                    }
+                }
+
+                if (state.focusCluster && nodesByCluster[state.focusCluster]) {
+                    isFiltering = true;
+                    nodesByCluster[state.focusCluster].forEach(addNode);
+                    vizData.edges.forEach(edge => {
+                        if (
+                            nodesByCluster[state.focusCluster].has(edge.source) &&
+                            nodesByCluster[state.focusCluster].has(edge.target)
+                        ) {
+                            addEdge(edge.id);
+                        }
+                    });
+                }
+
+                if (state.focusPredicate && edgesByPredicate[state.focusPredicate]) {
+                    isFiltering = true;
+                    edgesByPredicate[state.focusPredicate].forEach(edgeId => {
+                        addEdge(edgeId);
+                        const edge = edgeById[edgeId];
+                        addNode(edge.source);
+                        addNode(edge.target);
+                    });
+                }
+
+                if (state.searchTerm) {
+                    const term = state.searchTerm.toLowerCase();
+                    isFiltering = true;
+                    vizData.nodes.forEach(node => {
+                        if (node.label.toLowerCase().includes(term)) {
+                            addNode(node.id);
+                            node.neighbors.forEach(addNode);
+                        }
+                    });
+                    vizData.edges.forEach(edge => {
+                        if (edge.predicate.toLowerCase().includes(term)) {
+                            addEdge(edge.id);
+                            addNode(edge.source);
+                            addNode(edge.target);
+                        }
+                    });
+                }
+
+                // Trigger re-render with updated highlights
+                render();
+            }
+
+            function toggleSidebar() {
+                if (state.sidebarDisabled) return;
+
+                state.sidebarCollapsed = !state.sidebarCollapsed;
+                const layout = document.querySelector('.layout');
+                const sidebar = document.querySelector('.sidebar');
+                const toggleButton = document.getElementById('sidebarToggle');
+
+                layout.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+                sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
+                toggleButton.classList.toggle('collapsed', state.sidebarCollapsed);
+
+                // Trigger canvas resize when sidebar toggles
+                setTimeout(() => {
+                    resizeCanvas();
+                }, 300); // Wait for transition to complete
+            }
+
+            function disableSidebar() {
+                state.sidebarDisabled = true;
+
+                const layout = document.querySelector('.layout');
+                const sidebar = document.querySelector('.sidebar');
+                const toggleButton = document.getElementById('sidebarToggle');
+                const main = document.querySelector('.main');
+                const tabPanel = document.querySelector('.tab-panel');
+                const networkPanel = document.querySelector('.network-panel');
+
+                layout.classList.add('sidebar-disabled');
+                sidebar.style.display = 'none';
+                toggleButton.style.display = 'none';
+
+                // Force styles directly for iframe context
+                main.style.width = '100%';
+                main.style.height = '100vh';
+                tabPanel.style.padding = '0';
+                tabPanel.style.width = '100%';
+                tabPanel.style.height = '100vh';
+                networkPanel.style.width = '100%';
+                networkPanel.style.height = '100vh';
+                networkPanel.style.borderRadius = '0';
+                networkPanel.style.border = 'none';
+
+                console.log('Sidebar disabled, forcing full width styles');
+
+                // Multiple resize attempts with forced reflow
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('First resize attempt after 200ms');
+                    resizeCanvas();
+                }, 200);
+
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('Second resize attempt after 500ms');
+                    resizeCanvas();
+                }, 500);
+
+                setTimeout(() => {
+                    canvas.offsetHeight; // Trigger reflow
+                    console.log('Final resize attempt after 800ms');
+                    resizeCanvas();
+                }, 800);
+
+                // Notify parent about graph data
+                if (window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'graphDataReady',
+                        data: vizData
+                    }, '*');
+                }
+            }
+
+            function bindInteractions() {
+                document.querySelectorAll('.cluster-item').forEach(item => {
+                    item.addEventListener('click', () => toggleClusterFocus(item.getAttribute('data-cluster')));
+                });
+
+                document.querySelectorAll('.relation-item').forEach(item => {
+                    item.addEventListener('click', () => togglePredicateFocus(item.getAttribute('data-predicate')));
+                });
+
+                // document.getElementById('relationsTable').addEventListener('click', event => {
+                //     const row = event.target.closest('tr');
+                //     if (!row) {
+                //         return;
+                //     }
+                //     const edgeId = row.getAttribute('data-edge');
+                //     if (edgeId) {
+                //         setActiveElement({ type: 'edge', id: edgeId });
+                //     }
+                // });
+
+                const searchInput = document.getElementById('searchInput');
+                searchInput.addEventListener('input', () => {
+                    state.searchTerm = searchInput.value.trim();
+                    updateHighlights();
+
+                    // Notify parent about search change
+                    if (window.parent !== window && state.sidebarDisabled) {
+                        window.parent.postMessage({
+                            type: 'searchChanged',
+                            searchTerm: state.searchTerm
+                        }, '*');
+                    }
+                });
+                searchInput.addEventListener('keydown', event => {
+                    if (event.key === 'Escape') {
+                        searchInput.value = '';
+                        state.searchTerm = '';
+                        updateHighlights();
+                    }
+                });
+
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', event => {
+                        const target = event.currentTarget;
+                        document.querySelectorAll('.tab').forEach(button => button.classList.remove('active'));
+                        target.classList.add('active');
+                        const tabId = target.getAttribute('data-tab');
+                        document.querySelectorAll('.tab-panel').forEach(panel => {
+                            panel.classList.toggle('active', panel.id === tabId);
+                        });
+                    });
+                });
+
+                document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+
+                // Listen for messages from parent
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'disableInternalSidebar') {
+                        disableSidebar();
+                    } else if (event.data.type === 'search') {
+                        state.searchTerm = event.data.term || '';
+                        updateHighlights();
+                    } else if (event.data.type === 'focusCluster') {
+                        toggleClusterFocus(event.data.clusterId);
+                    } else if (event.data.type === 'focusPredicate') {
+                        togglePredicateFocus(event.data.predicate);
+                    }
+                });
+
+            }
+
+            renderStats();
+            renderTopLists();
+            renderClusters();
+            // renderRelationsTable();
+            // renderInsights();
+
+            // Delay network creation to ensure proper layout
+            setTimeout(() => {
+                createNetwork();
+                bindInteractions();
+            }, 100);
+        })();
+    </script>
+</body>
+
+</html>
