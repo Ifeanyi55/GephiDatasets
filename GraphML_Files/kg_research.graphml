@@ -1,0 +1,295 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><key id="d0" for="edge" attr.name="relation" attr.type="string"/>
+<graph edgedefault="directed"><node id="Airbnb"/>
+<node id="OWL (Web Ontology Language)"/>
+<node id="GraphSAGE"/>
+<node id="linguistics"/>
+<node id="Uber Engineering"/>
+<node id="Max Planck Institute for Informatics"/>
+<node id="existential graphs"/>
+<node id="Freebase"/>
+<node id="Google Knowledge Graph"/>
+<node id="University of Groningen"/>
+<node id="Luna Dong"/>
+<node id="Retrieval-Augmented Generation"/>
+<node id="Economic Graph"/>
+<node id="cognitive psychology"/>
+<node id="CIA World Factbook"/>
+<node id="Graph Search"/>
+<node id="Virtuoso"/>
+<node id="Wikipedia"/>
+<node id="Sören Auer"/>
+<node id="Charles Sanders Peirce"/>
+<node id="eBay"/>
+<node id="database theory"/>
+<node id="Labeled Property Graphs (LPG)"/>
+<node id="Amazon"/>
+<node id="Free University of Berlin"/>
+<node id="Knowledge Graphs"/>
+<node id="Graph Neural Networks (GNNs)"/>
+<node id="GPT-4"/>
+<node id="Cyc project"/>
+<node id="Knowledge Panels"/>
+<node id="Richard H. Richens"/>
+<node id="Tim Berners-Lee"/>
+<node id="Retrieval Time from Semantic Memory"/>
+<node id="YAGO"/>
+<node id="World Wide Web"/>
+<node id="Carnegie Mellon University"/>
+<node id="Unicorn system"/>
+<node id="The Dutch School"/>
+<node id="Semantic Networks"/>
+<node id="Linked Open Data"/>
+<node id="LinkedIn"/>
+<node id="Food Knowledge Graph"/>
+<node id="Product Graph"/>
+<node id="Beam"/>
+<node id="Edgar W. Schneider"/>
+<node id="WordNet"/>
+<node id="Knowledge Graph Embeddings"/>
+<node id="Amit Singhal"/>
+<node id="Allan M. Collins"/>
+<node id="John F. Sowa"/>
+<node id="Large Language Models (LLMs)"/>
+<node id="University of Twente"/>
+<node id="Semantic Web"/>
+<node id="Leipzig University"/>
+<node id="M. Ross Quillian"/>
+<node id="Doug Lenat"/>
+<node id="Metaweb"/>
+<node id="Neo4j"/>
+<node id="F.N. Stokman"/>
+<node id="RDF Stores"/>
+<node id="Pinterest"/>
+<node id="W3C"/>
+<node id="Neuro-Symbolic AI"/>
+<node id="C. Hoede"/>
+<node id="Tree of Porphyry"/>
+<node id="Cambridge Language Research Unit"/>
+<node id="Aristotle"/>
+<node id="Chris Bizer"/>
+<node id="Stardog"/>
+<node id="Semantic Nets"/>
+<node id="Triplestores"/>
+<node id="Facebook"/>
+<node id="GraphRAG"/>
+<node id="Entity Graph"/>
+<node id="RDF (Resource Description Framework)"/>
+<node id="Enterprise Knowledge Graphs"/>
+<node id="Conceptual Graphs"/>
+<node id="DBpedia"/>
+<node id="Uber Eats"/>
+<node id="Google"/>
+<node id="artificial intelligence"/>
+<node id="SPARQL"/>
+<edge source="Airbnb" target="Knowledge Graphs">
+  <data key="d0">developed</data>
+</edge>
+<edge source="Uber Engineering" target="GraphSAGE">
+  <data key="d0">utilized</data>
+</edge>
+<edge source="Uber Engineering" target="Food Knowledge Graph">
+  <data key="d0">developed</data>
+</edge>
+<edge source="existential graphs" target="Charles Sanders Peirce">
+  <data key="d0">is origin of</data>
+</edge>
+<edge source="Freebase" target="Linked Open Data">
+  <data key="d0">is a foundational project of</data>
+</edge>
+<edge source="Freebase" target="Google Knowledge Graph">
+  <data key="d0">used as seed data</data>
+</edge>
+<edge source="Google Knowledge Graph" target="Freebase">
+  <data key="d0">integrated data from</data>
+</edge>
+<edge source="Google Knowledge Graph" target="CIA World Factbook">
+  <data key="d0">integrated data from</data>
+</edge>
+<edge source="Google Knowledge Graph" target="Wikipedia">
+  <data key="d0">integrated data from</data>
+</edge>
+<edge source="Google Knowledge Graph" target="Knowledge Panels">
+  <data key="d0">is powered by</data>
+</edge>
+<edge source="University of Groningen" target="Knowledge Graphs">
+  <data key="d0">formally developed</data>
+</edge>
+<edge source="Virtuoso" target="RDF Stores">
+  <data key="d0">is an example of</data>
+</edge>
+<edge source="eBay" target="Beam">
+  <data key="d0">open-sourced</data>
+</edge>
+<edge source="Labeled Property Graphs (LPG)" target="Neo4j">
+  <data key="d0">popularized</data>
+</edge>
+<edge source="Amazon" target="Product Graph">
+  <data key="d0">developed</data>
+</edge>
+<edge source="Knowledge Graphs" target="GraphRAG">
+  <data key="d0">is a technique used with</data>
+</edge>
+<edge source="Knowledge Graphs" target="Large Language Models (LLMs)">
+  <data key="d0">are merging with</data>
+</edge>
+<edge source="Knowledge Graphs" target="Semantic Networks">
+  <data key="d0">has intellectual roots in</data>
+</edge>
+<edge source="Knowledge Graphs" target="Neuro-Symbolic AI">
+  <data key="d0">is a technique used with</data>
+</edge>
+<edge source="GPT-4" target="Large Language Models (LLMs)">
+  <data key="d0">is an example of</data>
+</edge>
+<edge source="Cyc project" target="Doug Lenat">
+  <data key="d0">started</data>
+</edge>
+<edge source="Richard H. Richens" target="Semantic Nets">
+  <data key="d0">implemented</data>
+</edge>
+<edge source="Richard H. Richens" target="Cambridge Language Research Unit">
+  <data key="d0">employed</data>
+</edge>
+<edge source="YAGO" target="Linked Open Data">
+  <data key="d0">is a foundational project of</data>
+</edge>
+<edge source="YAGO" target="WordNet">
+  <data key="d0">unifies with</data>
+</edge>
+<edge source="YAGO" target="Wikipedia">
+  <data key="d0">unifies with</data>
+</edge>
+<edge source="YAGO" target="Max Planck Institute for Informatics">
+  <data key="d0">developed</data>
+</edge>
+<edge source="The Dutch School" target="C. Hoede">
+  <data key="d0">led</data>
+</edge>
+<edge source="The Dutch School" target="F.N. Stokman">
+  <data key="d0">led</data>
+</edge>
+<edge source="The Dutch School" target="Knowledge Graphs">
+  <data key="d0">was a project of</data>
+</edge>
+<edge source="Semantic Networks" target="Richard H. Richens">
+  <data key="d0">developed</data>
+</edge>
+<edge source="Semantic Networks" target="M. Ross Quillian">
+  <data key="d0">developed</data>
+</edge>
+<edge source="LinkedIn" target="Economic Graph">
+  <data key="d0">developed</data>
+</edge>
+<edge source="Food Knowledge Graph" target="Uber Eats">
+  <data key="d0">is improved by</data>
+</edge>
+<edge source="Product Graph" target="Luna Dong">
+  <data key="d0">led development of</data>
+</edge>
+<edge source="Edgar W. Schneider" target="Knowledge Graphs">
+  <data key="d0">coined term</data>
+</edge>
+<edge source="Amit Singhal" target="Google Knowledge Graph">
+  <data key="d0">announced</data>
+</edge>
+<edge source="Allan M. Collins" target="Retrieval Time from Semantic Memory">
+  <data key="d0">published</data>
+</edge>
+<edge source="John F. Sowa" target="Conceptual Graphs">
+  <data key="d0">introduced</data>
+</edge>
+<edge source="University of Twente" target="Knowledge Graphs">
+  <data key="d0">formally developed</data>
+</edge>
+<edge source="Semantic Web" target="Tim Berners-Lee">
+  <data key="d0">guided vision of</data>
+</edge>
+<edge source="M. Ross Quillian" target="Semantic Networks">
+  <data key="d0">proposed</data>
+</edge>
+<edge source="M. Ross Quillian" target="Carnegie Mellon University">
+  <data key="d0">attended</data>
+</edge>
+<edge source="M. Ross Quillian" target="Allan M. Collins">
+  <data key="d0">collaborated with</data>
+</edge>
+<edge source="M. Ross Quillian" target="Retrieval Time from Semantic Memory">
+  <data key="d0">published</data>
+</edge>
+<edge source="Metaweb" target="Freebase">
+  <data key="d0">launched</data>
+</edge>
+<edge source="RDF Stores" target="Semantic Web">
+  <data key="d0">originated from</data>
+</edge>
+<edge source="Pinterest" target="Graph Neural Networks (GNNs)">
+  <data key="d0">applied</data>
+</edge>
+<edge source="W3C" target="OWL (Web Ontology Language)">
+  <data key="d0">developed</data>
+</edge>
+<edge source="W3C" target="RDF (Resource Description Framework)">
+  <data key="d0">developed</data>
+</edge>
+<edge source="Neuro-Symbolic AI" target="Knowledge Graphs">
+  <data key="d0">works in tandem with neural networks in</data>
+</edge>
+<edge source="Tree of Porphyry" target="Aristotle">
+  <data key="d0">is commented on by</data>
+</edge>
+<edge source="Stardog" target="RDF Stores">
+  <data key="d0">is an example of</data>
+</edge>
+<edge source="Facebook" target="Entity Graph">
+  <data key="d0">developed</data>
+</edge>
+<edge source="Facebook" target="Graph Search">
+  <data key="d0">developed</data>
+</edge>
+<edge source="GraphRAG" target="Retrieval-Augmented Generation">
+  <data key="d0">is a type of</data>
+</edge>
+<edge source="GraphRAG" target="Knowledge Graphs">
+  <data key="d0">retrieves facts from</data>
+</edge>
+<edge source="GraphRAG" target="Large Language Models (LLMs)">
+  <data key="d0">is prompted by</data>
+</edge>
+<edge source="Entity Graph" target="Unicorn system">
+  <data key="d0">is also known as</data>
+</edge>
+<edge source="Conceptual Graphs" target="existential graphs">
+  <data key="d0">derived from</data>
+</edge>
+<edge source="DBpedia" target="Free University of Berlin">
+  <data key="d0">initiated</data>
+</edge>
+<edge source="DBpedia" target="Sören Auer">
+  <data key="d0">initiated</data>
+</edge>
+<edge source="DBpedia" target="Leipzig University">
+  <data key="d0">initiated</data>
+</edge>
+<edge source="DBpedia" target="Wikipedia">
+  <data key="d0">extracts structured content from</data>
+</edge>
+<edge source="DBpedia" target="Chris Bizer">
+  <data key="d0">initiated</data>
+</edge>
+<edge source="DBpedia" target="Linked Open Data">
+  <data key="d0">is a foundational project of</data>
+</edge>
+<edge source="Uber Eats" target="Graph Neural Networks (GNNs)">
+  <data key="d0">applied</data>
+</edge>
+<edge source="Uber Eats" target="Food Knowledge Graph">
+  <data key="d0">developed</data>
+</edge>
+<edge source="Google" target="Metaweb">
+  <data key="d0">was acquired by</data>
+</edge>
+<edge source="Google" target="Google Knowledge Graph">
+  <data key="d0">launched</data>
+</edge>
+</graph></graphml>
